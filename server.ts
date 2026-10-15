@@ -1,6 +1,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
+import http from 'http';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
@@ -133,9 +134,15 @@ Extraia com o máximo de precisão:
 
 // Configuração do Vite middleware em dev ou arquivos estáticos em prod
 async function startServer() {
+  const server = http.createServer(app);
+
   if (process.env.NODE_ENV !== 'production') {
+    const isHmrDisabled = process.env.DISABLE_HMR === 'true';
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: isHmrDisabled ? false : { server },
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -146,7 +153,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`Servidor rodando em http://localhost:${PORT}`);
   });
 }
