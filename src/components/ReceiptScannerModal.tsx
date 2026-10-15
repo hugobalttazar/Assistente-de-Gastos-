@@ -164,56 +164,69 @@ Extraia em JSON estrito:
   "confidenceNotes": "observação de leitura"
 }`;
 
-          // Modelos modernos oficiais com o gemini-flash-latest como prioritário
+          // Modelos modernos de alta disponibilidade, priorizando Flash Lite (imune a picos de alta demanda)
           const modelsToTry = [
+            'gemini-flash-lite-latest',
+            'gemini-3.1-flash-lite',
+            'gemini-3.5-flash-lite',
             'gemini-flash-latest',
             'gemini-3.8-flash',
-            'gemini-3.7-flash',
-            'gemini-3.5-flash',
           ];
+          let parsedResult: any = null;
           let lastDirectError: any = null;
 
           for (const modelToCall of modelsToTry) {
-            try {
-              const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelToCall}:generateContent?key=${clientApiKey.trim()}`;
-              const resDirect = await fetch(geminiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [
-                    {
-                      parts: [
-                        {
-                          inlineData: {
-                            mimeType: fileToScan.type || 'image/jpeg',
-                            data: cleanBase64,
+            for (let attempt = 1; attempt <= 2; attempt++) {
+              try {
+                const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelToCall}:generateContent?key=${clientApiKey.trim()}`;
+                const resDirect = await fetch(geminiUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    contents: [
+                      {
+                        parts: [
+                          {
+                            inlineData: {
+                              mimeType: fileToScan.type || 'image/jpeg',
+                              data: cleanBase64,
+                            },
                           },
-                        },
-                        { text: promptText },
-                      ],
+                          { text: promptText },
+                        ],
+                      },
+                    ],
+                    generationConfig: {
+                      responseMimeType: 'application/json',
                     },
-                  ],
-                  generationConfig: {
-                    responseMimeType: 'application/json',
-                  },
-                }),
-              });
+                  }),
+                });
 
-              if (resDirect.ok) {
-                const directJson = await resDirect.json();
-                const textResponse = directJson.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (textResponse) {
-                  // Limpa eventuais crases de markdown
-                  const cleanedText = textResponse.replace(/^```json/i, '').replace(/```$/i, '').trim();
-                  data = JSON.parse(cleanedText);
-                  break;
+                if (resDirect.ok) {
+                  const directJson = await resDirect.json();
+                  const textResponse = directJson.candidates?.[0]?.content?.parts?.[0]?.text;
+                  if (textResponse) {
+                    const cleanedText = textResponse.replace(/^```json/i, '').replace(/```$/i, '').trim();
+                    const parsed = JSON.parse(cleanedText);
+                    parsedResult = Array.isArray(parsed) ? parsed[0] : parsed;
+                    break;
+                  }
+                } else {
+                  const errBody = await resDirect.json().catch(() => ({}));
+                  const errMsg = errBody.error?.message || `Erro ${resDirect.status}`;
+                  lastDirectError = new Error(errMsg);
+                  // Se for 503 (alta demanda temporária), aguarda 1.2s antes de tentar novamente
+                  if (resDirect.status === 503 || errMsg.includes('demand')) {
+                    await new Promise((r) => setTimeout(r, 1200));
+                  }
                 }
-              } else {
-                const errBody = await resDirect.json().catch(() => ({}));
-                lastDirectError = new Error(errBody.error?.message || `Erro ${resDirect.status} ao consultar modelo ${modelToCall}`);
+              } catch (netErr: any) {
+                lastDirectError = netErr;
               }
-            } catch (netErr: any) {
-              lastDirectError = netErr;
+            }
+            if (parsedResult) {
+              data = parsedResult;
+              break;
             }
           }
 
