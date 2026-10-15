@@ -1,0 +1,456 @@
+import React, { useState } from 'react';
+import {
+  Search,
+  Filter,
+  Eye,
+  Trash2,
+  Edit3,
+  Receipt,
+  Plus,
+  ArrowUpDown,
+  CheckCircle2,
+  Clock,
+  Check,
+  X,
+} from 'lucide-react';
+import { CorporateExpense, ExpenseCategory } from '../types/expense';
+
+interface ExpenseTableViewProps {
+  expenses: CorporateExpense[];
+  selectedMonth: string;
+  onOpenScanner: () => void;
+  onViewExpense: (expense: CorporateExpense) => void;
+  onUpdateExpense: (expense: CorporateExpense) => void;
+  onDeleteExpense: (id: string) => void;
+}
+
+export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
+  expenses,
+  selectedMonth,
+  onOpenScanner,
+  onViewExpense,
+  onUpdateExpense,
+  onDeleteExpense,
+}) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [sortField, setSortField] = useState<'date' | 'amount'>('date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  // Estado para edição rápida da justificativa
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+  const [editDescription, setEditDescription] = useState<string>('');
+  const [editAmount, setEditAmount] = useState<string>('');
+
+  // Estado para exclusão com confirmação segura (sem depender de window.confirm)
+  const [expenseToDelete, setExpenseToDelete] = useState<CorporateExpense | null>(null);
+
+  // Filtra por mês
+  const monthExpenses = expenses.filter((e) => e.date.startsWith(selectedMonth));
+
+  // Aplica filtros de texto e categoria
+  const filteredExpenses = monthExpenses.filter((e) => {
+    const matchesSearch =
+      e.merchant.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      e.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (e.cnpj && e.cnpj.includes(searchTerm));
+    const matchesCategory =
+      categoryFilter === 'all' || e.category === categoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+
+  // Ordenação
+  const sortedExpenses = [...filteredExpenses].sort((a, b) => {
+    if (sortField === 'date') {
+      const cmp = a.date.localeCompare(b.date);
+      return sortDirection === 'asc' ? cmp : -cmp;
+    } else {
+      return sortDirection === 'asc'
+        ? a.amount - b.amount
+        : b.amount - a.amount;
+    }
+  });
+
+  const toggleSort = (field: 'date' | 'amount') => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
+
+  const handleStartEdit = (exp: CorporateExpense) => {
+    setEditingExpenseId(exp.id);
+    setEditDescription(exp.description);
+    setEditAmount(String(exp.amount));
+  };
+
+  const handleSaveEdit = (exp: CorporateExpense) => {
+    const numAmount = parseFloat(editAmount.replace(',', '.'));
+    onUpdateExpense({
+      ...exp,
+      description: editDescription.trim() || exp.description,
+      amount: !isNaN(numAmount) && numAmount > 0 ? numAmount : exp.amount,
+    });
+    setEditingExpenseId(null);
+  };
+
+  const toggleStatus = (exp: CorporateExpense) => {
+    onUpdateExpense({
+      ...exp,
+      status: exp.status === 'conferido' ? 'pendente' : 'conferido',
+    });
+  };
+
+  const totalFiltered = sortedExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+  return (
+    <div className="space-y-4">
+      {/* Barra de Filtros e Busca */}
+      <div className="bg-[#111827] border border-slate-800 rounded-xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+        {/* Campo de Busca */}
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Buscar por fornecedor, descrição ou CNPJ..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+          />
+        </div>
+
+        {/* Filtros e Ações */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Filter className="w-3.5 h-3.5 text-slate-400" />
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 cursor-pointer"
+            >
+              <option value="all">Todas as Categorias</option>
+              <option value="Alimentação">Alimentação</option>
+              <option value="Transporte / Táxi / Uber">Transporte / Táxi / Uber</option>
+              <option value="Combustível">Combustível</option>
+              <option value="Hospedagem">Hospedagem</option>
+              <option value="Passagens">Passagens</option>
+              <option value="Material de Escritório">Material de Escritório</option>
+              <option value="Software & Serviços">Software & Serviços</option>
+              <option value="Outros">Outros</option>
+            </select>
+          </div>
+
+          <button
+            onClick={onOpenScanner}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-lg transition-colors cursor-pointer ml-auto"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>Adicionar Comprovante</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Tabela de Despesas - Estilo Mesa de Conferência */}
+      <div className="bg-[#111827] border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-900/90 border-b border-slate-800 text-[11px] font-semibold text-slate-400">
+                <th className="py-3 px-4 w-12 text-center">Item</th>
+                <th className="py-3 px-3 w-16 text-center">Anexo</th>
+                <th
+                  onClick={() => toggleSort('date')}
+                  className="py-3 px-3 cursor-pointer hover:text-white transition-colors select-none"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Data</span>
+                    <ArrowUpDown className="w-3 h-3" />
+                  </div>
+                </th>
+                <th className="py-3 px-3">Estabelecimento / Fornecedor</th>
+                <th className="py-3 px-3">Categoria</th>
+                <th className="py-3 px-3 min-w-[200px]">Descrição / Justificativa</th>
+                <th
+                  onClick={() => toggleSort('amount')}
+                  className="py-3 px-4 text-right cursor-pointer hover:text-white transition-colors select-none"
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    <span>Valor (R$)</span>
+                    <ArrowUpDown className="w-3 h-3" />
+                  </div>
+                </th>
+                <th className="py-3 px-3 text-center">Status</th>
+                <th className="py-3 px-4 text-right w-24">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/80 text-xs">
+              {sortedExpenses.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-12 text-center text-slate-500">
+                    <Receipt className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                    <p className="font-medium text-slate-400">
+                      Nenhuma despesa encontrada para os critérios selecionados.
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Adicione novos comprovantes ou ajuste os filtros acima.
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                sortedExpenses.map((exp, index) => {
+                  const isEditing = editingExpenseId === exp.id;
+
+                  return (
+                    <tr
+                      key={exp.id}
+                      className="hover:bg-slate-800/40 transition-colors group"
+                    >
+                      {/* Índice */}
+                      <td className="py-3 px-4 text-center font-mono text-[11px] text-slate-500">
+                        {String(index + 1).padStart(2, '0')}
+                      </td>
+
+                      {/* Miniatura do Anexo */}
+                      <td className="py-2 px-3 text-center">
+                        {exp.receipt ? (
+                          <button
+                            onClick={() => onViewExpense(exp)}
+                            className="w-9 h-9 rounded-md bg-slate-900 border border-slate-700 hover:border-emerald-500 overflow-hidden inline-flex items-center justify-center cursor-pointer transition-all hover:scale-105"
+                            title="Ver comprovante original ampliado"
+                          >
+                            <img
+                              src={exp.receipt.dataUrl}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          </button>
+                        ) : (
+                          <span
+                            className="text-slate-600 text-[10px]"
+                            title="Sem anexo"
+                          >
+                            -
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Data */}
+                      <td className="py-3 px-3 font-mono text-slate-300 whitespace-nowrap">
+                        {exp.date.split('-').reverse().join('/')}
+                      </td>
+
+                      {/* Fornecedor */}
+                      <td className="py-3 px-3">
+                        <div className="font-semibold text-white truncate max-w-[180px]">
+                          {exp.merchant}
+                        </div>
+                        {exp.cnpj && (
+                          <div className="text-[10px] text-slate-400 font-mono">
+                            {exp.cnpj}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Categoria */}
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <span className="text-slate-300 font-medium text-[11px]">
+                          {exp.category}
+                        </span>
+                      </td>
+
+                      {/* Descrição / Justificativa (com edição rápida) */}
+                      <td className="py-3 px-3">
+                        {isEditing ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={editDescription}
+                              onChange={(e) => setEditDescription(e.target.value)}
+                              className="w-full bg-slate-900 border border-emerald-500 rounded px-2 py-1 text-xs text-white focus:outline-none"
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => handleSaveEdit(exp)}
+                              className="p-1 text-emerald-400 hover:text-emerald-300 cursor-pointer"
+                              title="Salvar"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setEditingExpenseId(null)}
+                              className="p-1 text-slate-400 hover:text-white cursor-pointer"
+                              title="Cancelar"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => handleStartEdit(exp)}
+                            className="text-slate-300 hover:text-white cursor-pointer group/desc flex items-center justify-between gap-2"
+                            title="Clique para editar a justificativa"
+                          >
+                            <span className="truncate max-w-sm">
+                              {exp.description}
+                            </span>
+                            <Edit3 className="w-3 h-3 text-slate-600 group-hover/desc:text-slate-400 shrink-0 opacity-0 group-hover/desc:opacity-100 transition-opacity" />
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Valor R$ */}
+                      <td className="py-3 px-4 text-right font-mono font-bold text-white tabular-nums whitespace-nowrap">
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={editAmount}
+                            onChange={(e) => setEditAmount(e.target.value)}
+                            className="w-24 text-right bg-slate-900 border border-emerald-500 rounded px-2 py-1 text-xs text-emerald-400 focus:outline-none"
+                          />
+                        ) : (
+                          <span>R$ {exp.amount.toFixed(2).replace('.', ',')}</span>
+                        )}
+                      </td>
+
+                      {/* Status */}
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
+                        <button
+                          onClick={() => toggleStatus(exp)}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
+                            exp.status === 'conferido'
+                              ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/40'
+                              : 'bg-amber-950/60 text-amber-400 border border-amber-800/40'
+                          }`}
+                          title="Clique para alternar status de conferência"
+                        >
+                          {exp.status === 'conferido' ? (
+                            <>
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>Conferido</span>
+                            </>
+                          ) : (
+                            <>
+                              <Clock className="w-3 h-3" />
+                              <span>Pendente</span>
+                            </>
+                          )}
+                        </button>
+                      </td>
+
+                      {/* Ações */}
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1">
+                          {exp.receipt && (
+                            <button
+                              onClick={() => onViewExpense(exp)}
+                              className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                              title="Visualizar Comprovante"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleStartEdit(exp)}
+                            className="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                            title="Editar Dados"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setExpenseToDelete(exp)}
+                            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                            title="Excluir Despesa"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+            {sortedExpenses.length > 0 && (
+              <tfoot>
+                <tr className="bg-slate-900/90 border-t border-slate-700 font-semibold text-xs">
+                  <td colSpan={6} className="py-3 px-4 text-slate-300">
+                    Total deste fechamento ({sortedExpenses.length} itens)
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono text-emerald-400 text-sm font-bold tabular-nums">
+                    R$ {totalFiltered.toFixed(2).replace('.', ',')}
+                  </td>
+                  <td colSpan={2}></td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+
+      {/* Modal de Confirmação de Exclusão Nativo */}
+      {expenseToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+          <div className="bg-[#111827] border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">
+                  Excluir Lançamento?
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Esta ação removerá a despesa e o comprovante da sua mesa.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800/80 mb-5 text-xs text-slate-300 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Estabelecimento:</span>
+                <span className="font-semibold text-white truncate max-w-[200px]">
+                  {expenseToDelete.merchant}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Data:</span>
+                <span className="font-mono text-slate-200">
+                  {expenseToDelete.date.split('-').reverse().join('/')}
+                </span>
+              </div>
+              <div className="flex items-center justify-between border-t border-slate-800 pt-1.5 mt-1">
+                <span className="text-slate-400">Valor a Excluir:</span>
+                <span className="text-emerald-400 font-mono font-bold text-sm tabular-nums">
+                  R$ {expenseToDelete.amount.toFixed(2).replace('.', ',')}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setExpenseToDelete(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onDeleteExpense(expenseToDelete.id);
+                  setExpenseToDelete(null);
+                }}
+                className="px-4 py-2 text-xs font-semibold text-white bg-red-600 hover:bg-red-500 active:scale-95 rounded-lg transition-all cursor-pointer shadow-sm shadow-red-900/30"
+              >
+                Sim, Excluir Despesa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

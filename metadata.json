@@ -1,0 +1,6 @@
+{
+  "name": "Meu Assessor - Cartão Corporativo & Despesas",
+  "description": "Gestor inteligente de despesas de cartão corporativo com leitura automatizada de comprovantes via IA, painel executivo e relatórios em PDF e Excel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

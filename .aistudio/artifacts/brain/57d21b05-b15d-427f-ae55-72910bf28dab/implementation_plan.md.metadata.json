@@ -1,0 +1,6 @@
+{
+  "summary": "Plano de implementação detalhado para o app de Gestão e Prestação de Contas de Cartão Corporativo (inspirado no Meu Assessor), com leitura e OCR inteligente de comprovantes via Gemini AI, relatórios mensais diagramados para PDF/Excel e armazenamento local com prontidão para Firebase/GitHub Pages.",
+  "updatedAt": "2026-10-14T23:21:24.122675942Z",
+  "requestFeedback": true,
+  "userFacing": true
+}
