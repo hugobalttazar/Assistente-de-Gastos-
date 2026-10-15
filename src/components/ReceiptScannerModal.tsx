@@ -93,6 +93,23 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
     }
   };
 
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [tempApiKey, setTempApiKey] = useState('');
+
+  // Salva a chave da API do Gemini localmente e reexecuta o escaneamento
+  const handleSaveApiKeyAndRescan = () => {
+    if (!tempApiKey.trim()) return;
+    const rawSettings = localStorage.getItem('meu_assessor_company_settings');
+    const parsed = rawSettings ? JSON.parse(rawSettings) : {};
+    parsed.geminiApiKey = tempApiKey.trim();
+    localStorage.setItem('meu_assessor_company_settings', JSON.stringify(parsed));
+    setShowApiKeyModal(false);
+    setScanError(null);
+    if (selectedFile) {
+      triggerAiScan(selectedFile);
+    }
+  };
+
   // Chama o backend para extração via Gemini API
   const triggerAiScan = async (fileToScan: ReceiptFile) => {
     setIsScanning(true);
@@ -123,68 +140,91 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
           }
         }
       } catch (backendErr) {
-        console.warn('Backend /api/scan-receipt indisponível (ambiente estático/GitHub Pages). Tentando fallback direto:', backendErr);
+        console.warn('Backend /api/scan-receipt não respondeu (ambiente estático/PWA/GitHub Pages):', backendErr);
       }
 
-      // 2. Se backend falhou (ex: hospedagem estática no GitHub Pages), verifica chave salva
+      // 2. Se backend falhou (ex: app instalado no PC ou GitHub Pages), usa chamada direta via cliente
       if (!data) {
         const rawSettings = localStorage.getItem('meu_assessor_company_settings');
         const parsedSettings = rawSettings ? JSON.parse(rawSettings) : {};
         const clientApiKey = parsedSettings.geminiApiKey;
 
-        if (clientApiKey) {
+        if (clientApiKey && clientApiKey.trim()) {
           const cleanBase64 = fileToScan.dataUrl.includes(',')
             ? fileToScan.dataUrl.split(',')[1]
             : fileToScan.dataUrl;
 
           const promptText = `Você é um especialista contábil em prestação de contas de cartão corporativo no Brasil.
 Analise a imagem ou PDF deste recibo, nota fiscal (NFC-e, NF-e, SAT), fatura ou cupom fiscal.
-Extraia em JSON:
-- date (YYYY-MM-DD)
-- amount (número decimal em reais)
-- merchant (nome do estabelecimento)
-- category ("Alimentação", "Transporte / Táxi / Uber", "Combustível", "Hospedagem", "Passagens", "Material de Escritório", "Software & Serviços", "Outros")
-- description (descrição clara do gasto)
-- cnpj (se visível)
-- paymentMethod (forma de pagamento)`;
+Extraia em JSON estrito:
+{
+  "date": "YYYY-MM-DD",
+  "amount": 0.00,
+  "merchant": "Nome do Estabelecimento",
+  "category": "Alimentação" ou "Transporte / Táxi / Uber" ou "Combustível" ou "Hospedagem" ou "Passagens" ou "Material de Escritório" ou "Software & Serviços" ou "Outros",
+  "description": "descrição concisa do que foi comprado",
+  "cnpj": "00.000.000/0000-00",
+  "paymentMethod": "Forma de pagamento",
+  "confidenceNotes": "observação de leitura"
+}`;
 
-          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${clientApiKey}`;
-          const resDirect = await fetch(geminiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [
-                {
-                  parts: [
+          // Tenta modelos atuais com fallback
+          const modelsToTry = ['gemini-3.8-flash', 'gemini-2.0-flash'];
+          let lastDirectError: any = null;
+
+          for (const modelToCall of modelsToTry) {
+            try {
+              const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelToCall}:generateContent?key=${clientApiKey.trim()}`;
+              const resDirect = await fetch(geminiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [
                     {
-                      inlineData: {
-                        mimeType: fileToScan.type || 'image/jpeg',
-                        data: cleanBase64,
-                      },
+                      parts: [
+                        {
+                          inlineData: {
+                            mimeType: fileToScan.type || 'image/jpeg',
+                            data: cleanBase64,
+                          },
+                        },
+                        { text: promptText },
+                      ],
                     },
-                    { text: promptText },
                   ],
-                },
-              ],
-              generationConfig: {
-                responseMimeType: 'application/json',
-              },
-            }),
-          });
+                  generationConfig: {
+                    responseMimeType: 'application/json',
+                  },
+                }),
+              });
 
-          if (resDirect.ok) {
-            const directJson = await resDirect.json();
-            const textResponse = directJson.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (textResponse) {
-              data = JSON.parse(textResponse);
+              if (resDirect.ok) {
+                const directJson = await resDirect.json();
+                const textResponse = directJson.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (textResponse) {
+                  // Limpa eventuais crases de markdown
+                  const cleanedText = textResponse.replace(/^```json/i, '').replace(/```$/i, '').trim();
+                  data = JSON.parse(cleanedText);
+                  break;
+                }
+              } else {
+                const errBody = await resDirect.json().catch(() => ({}));
+                lastDirectError = new Error(errBody.error?.message || `Erro ${resDirect.status} ao consultar modelo ${modelToCall}`);
+              }
+            } catch (netErr: any) {
+              lastDirectError = netErr;
             }
-          } else {
-            throw new Error('Falha na chamada direta à API do Gemini com a chave informada.');
+          }
+
+          if (!data) {
+            throw lastDirectError || new Error('Não foi possível ler o comprovante com a chave do Gemini.');
           }
         } else {
-          throw new Error(
-            'Para ler comprovantes com IA no GitHub Pages (hospedagem estática), adicione sua chave gratuita do Gemini na aba "Configurações".'
-          );
+          // Solicita a chave diretamente no modal para o usuário não ficar perdido!
+          setShowApiKeyModal(true);
+          setIsScanning(false);
+          setScanError('Como este app está instalado no seu computador, informe sua chave gratuita do Gemini para ativar a leitura com IA:');
+          return;
         }
       }
 
@@ -216,9 +256,7 @@ Extraia em JSON:
       }
     } catch (err: any) {
       console.error('Erro na leitura com IA:', err);
-      setScanError(
-        'A leitura automática encontrou dificuldade, mas você pode preencher os campos manualmente abaixo.'
-      );
+      setScanError(err.message || 'A leitura automática encontrou dificuldade, mas você pode preencher os campos manualmente abaixo.');
     } finally {
       setIsScanning(false);
     }
@@ -419,6 +457,51 @@ Extraia em JSON:
               <div className="p-3 rounded-lg bg-amber-950/30 border border-amber-800/40 text-xs text-amber-300 flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                 <span>{scanError}</span>
+              </div>
+            )}
+
+            {showApiKeyModal && (
+              <div className="p-4 rounded-xl bg-slate-900 border border-emerald-500/50 text-xs text-slate-200 space-y-3 shadow-lg">
+                <div className="flex items-center gap-2 text-emerald-400 font-semibold">
+                  <Sparkles className="w-4 h-4" />
+                  <span>Configurar Chave da IA (Gemini)</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  No app instalado no seu computador ou no GitHub Pages, informe sua chave gratuita do Google AI Studio para ativar a extração inteligente:
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="password"
+                    placeholder="Cole sua chave aqui (AIzaSy...)"
+                    value={tempApiKey}
+                    onChange={(e) => setTempApiKey(e.target.value)}
+                    className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveApiKeyAndRescan}
+                    className="px-4 py-2 bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-semibold text-xs rounded-lg transition-colors cursor-pointer shrink-0"
+                  >
+                    Salvar & Ler
+                  </button>
+                </div>
+                <div className="pt-1 border-t border-slate-800 flex items-center justify-between">
+                  <a
+                    href="https://aistudio.google.com/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-emerald-400 hover:underline inline-flex items-center gap-1"
+                  >
+                    <span>→ Obter chave gratuita no Google AI Studio (30s)</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKeyModal(false)}
+                    className="text-[11px] text-slate-500 hover:text-slate-400 cursor-pointer"
+                  >
+                    Dispensar
+                  </button>
+                </div>
               </div>
             )}
           </div>

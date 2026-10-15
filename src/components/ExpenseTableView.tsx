@@ -45,11 +45,16 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
   // Estado para exclusão com confirmação segura (sem depender de window.confirm)
   const [expenseToDelete, setExpenseToDelete] = useState<CorporateExpense | null>(null);
 
-  // Filtra por mês
-  const monthExpenses = expenses.filter((e) => e.date.startsWith(selectedMonth));
+  // Estado para visualização de todos os meses
+  const [showAllMonths, setShowAllMonths] = useState(false);
+
+  // Filtra por mês (ou todos)
+  const targetExpenses = showAllMonths
+    ? expenses
+    : expenses.filter((e) => e.date.startsWith(selectedMonth));
 
   // Aplica filtros de texto e categoria
-  const filteredExpenses = monthExpenses.filter((e) => {
+  const filteredExpenses = targetExpenses.filter((e) => {
     const matchesSearch =
       e.merchant.toLowerCase().includes(searchTerm.toLowerCase()) ||
       e.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -140,6 +145,17 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
               <option value="Software & Serviços">Software & Serviços</option>
               <option value="Outros">Outros</option>
             </select>
+            <button
+              onClick={() => setShowAllMonths(!showAllMonths)}
+              className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                showAllMonths
+                  ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 shadow-xs'
+                  : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+              title="Alternar entre despesas do mês selecionado ou histórico completo"
+            >
+              {showAllMonths ? 'Ver Apenas Mês Atual' : `Histórico Completo (${expenses.length})`}
+            </button>
           </div>
 
           <button
@@ -191,11 +207,26 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
                   <td colSpan={9} className="py-12 text-center text-slate-500">
                     <Receipt className="w-8 h-8 mx-auto mb-2 opacity-40" />
                     <p className="font-medium text-slate-400">
-                      Nenhuma despesa encontrada para os critérios selecionados.
+                      Nenhuma despesa encontrada para {showAllMonths ? 'os filtros selecionados' : 'o mês selecionado'}.
                     </p>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Adicione novos comprovantes ou ajuste os filtros acima.
-                    </p>
+                    {expenses.length > 0 && !showAllMonths ? (
+                      <div className="mt-3">
+                        <p className="text-xs text-slate-400 mb-2">
+                          Você possui <strong className="text-emerald-400">{expenses.length} despesa(s)</strong> gravada(s) em outros meses ou períodos.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setShowAllMonths(true)}
+                          className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                        >
+                          Ver Despesas de Todos os Meses
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Adicione novos comprovantes ou ajuste os filtros acima.
+                      </p>
+                    )}
                   </td>
                 </tr>
               ) : (

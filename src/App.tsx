@@ -60,6 +60,9 @@ export default function App() {
   const handleSaveExpense = async (newExpense: CorporateExpense) => {
     await saveStoredExpense(newExpense);
     setExpenses((prev) => [newExpense, ...prev.filter((e) => e.id !== newExpense.id)]);
+    if (newExpense.date && newExpense.date.length >= 7) {
+      setSelectedMonth(newExpense.date.substring(0, 7));
+    }
   };
 
   // Atualizar despesa existente

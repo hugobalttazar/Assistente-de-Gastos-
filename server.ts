@@ -65,56 +65,81 @@ Extraia com o máximo de precisão:
 7. paymentMethod (indicação do meio de pagamento, ex: "Cartão de Crédito final 4022", "Mastercard", "Visa", etc., ou "Cartão Corporativo" se genérico).
 8. confidenceNotes (uma breve observação sobre a legibilidade ou detalhes extras encontrados).`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: {
-        parts: [
-          filePart,
-          { text: promptText },
-        ],
-      },
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            date: {
-              type: Type.STRING,
-              description: 'Data da compra no formato YYYY-MM-DD',
+    let response: any = null;
+    let lastError: any = null;
+    const modelsToTry = ['gemini-3.8-flash', 'gemini-2.0-flash'];
+
+    for (const modelName of modelsToTry) {
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          response = await ai.models.generateContent({
+            model: modelName,
+            contents: {
+              parts: [
+                filePart,
+                { text: promptText },
+              ],
             },
-            amount: {
-              type: Type.NUMBER,
-              description: 'Valor total do comprovante em reais (número com ponto decimal)',
+            config: {
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                  date: {
+                    type: Type.STRING,
+                    description: 'Data da compra no formato YYYY-MM-DD',
+                  },
+                  amount: {
+                    type: Type.NUMBER,
+                    description: 'Valor total do comprovante em reais (número com ponto decimal)',
+                  },
+                  merchant: {
+                    type: Type.STRING,
+                    description: 'Nome fantasia ou razão social do estabelecimento',
+                  },
+                  category: {
+                    type: Type.STRING,
+                    description: 'Categoria contábil da despesa corporativa',
+                  },
+                  description: {
+                    type: Type.STRING,
+                    description: 'Descrição objetiva dos itens ou serviço adquirido',
+                  },
+                  cnpj: {
+                    type: Type.STRING,
+                    description: 'CNPJ do estabelecimento, se identificado',
+                  },
+                  paymentMethod: {
+                    type: Type.STRING,
+                    description: 'Forma de pagamento ou identificação do cartão',
+                  },
+                  confidenceNotes: {
+                    type: Type.STRING,
+                    description: 'Observação sobre a leitura e legibilidade do documento',
+                  },
+                },
+                required: ['date', 'amount', 'merchant', 'category', 'description'],
+              },
             },
-            merchant: {
-              type: Type.STRING,
-              description: 'Nome fantasia ou razão social do estabelecimento',
-            },
-            category: {
-              type: Type.STRING,
-              description: 'Categoria contábil da despesa corporativa',
-            },
-            description: {
-              type: Type.STRING,
-              description: 'Descrição objetiva dos itens ou serviço adquirido',
-            },
-            cnpj: {
-              type: Type.STRING,
-              description: 'CNPJ do estabelecimento, se identificado',
-            },
-            paymentMethod: {
-              type: Type.STRING,
-              description: 'Forma de pagamento ou identificação do cartão',
-            },
-            confidenceNotes: {
-              type: Type.STRING,
-              description: 'Observação sobre a leitura e legibilidade do documento',
-            },
-          },
-          required: ['date', 'amount', 'merchant', 'category', 'description'],
-        },
-      },
-    });
+          });
+
+          if (response && response.text) {
+            break;
+          }
+        } catch (err: any) {
+          lastError = err;
+          // Espera 1s antes da próxima tentativa caso haja pico temporário
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      }
+      if (response && response.text) {
+        break;
+      }
+    }
+
+    if (!response || !response.text) {
+      throw lastError || new Error('Não foi possível obter resposta dos modelos de IA.');
+    }
 
     const rawJson = response.text || '{}';
     const parsedData = JSON.parse(rawJson);
