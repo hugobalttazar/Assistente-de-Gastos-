@@ -67,7 +67,12 @@ Extraia com o máximo de precisão:
 
     let response: any = null;
     let lastError: any = null;
-    const modelsToTry = ['gemini-3.8-flash', 'gemini-2.0-flash'];
+    const modelsToTry = [
+      'gemini-flash-latest',
+      'gemini-3.8-flash',
+      'gemini-3.7-flash',
+      'gemini-3.5-flash',
+    ];
 
     for (const modelName of modelsToTry) {
       for (let attempt = 1; attempt <= 2; attempt++) {

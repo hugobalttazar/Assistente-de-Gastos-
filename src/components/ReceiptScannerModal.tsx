@@ -164,8 +164,13 @@ Extraia em JSON estrito:
   "confidenceNotes": "observação de leitura"
 }`;
 
-          // Tenta modelos atuais com fallback
-          const modelsToTry = ['gemini-3.8-flash', 'gemini-2.0-flash'];
+          // Modelos modernos oficiais com o gemini-flash-latest como prioritário
+          const modelsToTry = [
+            'gemini-flash-latest',
+            'gemini-3.8-flash',
+            'gemini-3.7-flash',
+            'gemini-3.5-flash',
+          ];
           let lastDirectError: any = null;
 
           for (const modelToCall of modelsToTry) {
