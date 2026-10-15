@@ -4,19 +4,32 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script>
-      // Ignora erros esperados de WebSocket HMR desativado no ambiente AI Studio
-      window.addEventListener('error', function(e) {
-        if (e.message && (e.message.indexOf('WebSocket') !== -1 || (e.filename && e.filename.indexOf('@vite/client') !== -1))) {
-          e.stopImmediatePropagation();
-          e.preventDefault();
-        }
-      }, true);
-      window.addEventListener('unhandledrejection', function(e) {
-        if (e.reason && String(e.reason).indexOf('WebSocket') !== -1) {
-          e.stopImmediatePropagation();
-          e.preventDefault();
-        }
-      });
+      // Suprime avisos esperados de WebSocket HMR desativado no ambiente AI Studio
+      (function() {
+        var origConsoleError = console.error;
+        console.error = function() {
+          for (var i = 0; i < arguments.length; i++) {
+            var arg = arguments[i];
+            var str = String(arg && arg.message ? arg.message : arg);
+            if (str.indexOf('WebSocket') !== -1 || str.indexOf('vite-hmr') !== -1) {
+              return;
+            }
+          }
+          origConsoleError.apply(console, arguments);
+        };
+        window.addEventListener('error', function(e) {
+          if (e.message && (e.message.indexOf('WebSocket') !== -1 || (e.filename && e.filename.indexOf('@vite/client') !== -1))) {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+          }
+        }, true);
+        window.addEventListener('unhandledrejection', function(e) {
+          if (e.reason && String(e.reason).indexOf('WebSocket') !== -1) {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+          }
+        });
+      })();
     </script>
     <title>Assistente de Gastos - Cartão Corporativo & Despesas</title>
     <meta name="description" content="Gestor inteligente de despesas de cartão corporativo com leitura automatizada de comprovantes via IA, painel executivo e relatórios em PDF e Excel." />

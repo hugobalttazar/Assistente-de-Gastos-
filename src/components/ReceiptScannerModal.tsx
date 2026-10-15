@@ -60,9 +60,8 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  if (!isOpen) return null;
-
-  // Processa o arquivo selecionado
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [tempApiKey, setTempApiKey] = useState('');
   const handleFileChange = (file: File) => {
     setScanError(null);
     setConfidenceNote(null);
@@ -92,9 +91,6 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
       handleFileChange(e.dataTransfer.files[0]);
     }
   };
-
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
-  const [tempApiKey, setTempApiKey] = useState('');
 
   // Salva a chave da API do Gemini localmente e reexecuta o escaneamento
   const handleSaveApiKeyAndRescan = () => {
@@ -308,6 +304,8 @@ Extraia em JSON estrito:
   };
 
   const isPdf = selectedFile?.type === 'application/pdf' || selectedFile?.name.endsWith('.pdf');
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
