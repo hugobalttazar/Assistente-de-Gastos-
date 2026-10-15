@@ -32,8 +32,10 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
   const [showAttachedReceipts, setShowAttachedReceipts] = useState(true);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-  // Filtra as despesas do mês selecionado
-  const monthExpenses = expenses.filter((e) => e.date.startsWith(selectedMonth));
+  // Filtra as despesas do mês selecionado e ordena cronologicamente pela data (da mais antiga para a mais recente)
+  const monthExpenses = expenses
+    .filter((e) => e.date.startsWith(selectedMonth))
+    .sort((a, b) => a.date.localeCompare(b.date));
   const totalAmount = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
 
   const formatMonthName = (mStr: string) => {

@@ -34,8 +34,11 @@ export function exportExpensesToExcel(
     'Valor (R$)',
   ];
 
+  // Ordena cronologicamente por data (da mais antiga para a mais recente)
+  const sortedExpenses = [...expenses].sort((a, b) => a.date.localeCompare(b.date));
+
   let totalAmount = 0;
-  const tableRows = expenses.map((exp, index) => {
+  const tableRows = sortedExpenses.map((exp, index) => {
     totalAmount += exp.amount;
     const dateFormatted = exp.date
       ? exp.date.split('-').reverse().join('/')

@@ -55,6 +55,9 @@ export async function exportExpensesToPdf(
   monthLabel: string,
   includeReceipts: boolean = true
 ): Promise<void> {
+  // Ordena as despesas por data de forma estritamente cronológica
+  const sortedExpenses = [...expenses].sort((a, b) => a.date.localeCompare(b.date));
+
   // Cria documento A4 (210 x 297 mm)
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -135,14 +138,14 @@ export async function exportExpensesToPdf(
   doc.text(settings.corporateCardNumber, margin + 4, currentY + 11);
 
   // Caixa 4: Total em Despesas
-  const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalAmount = sortedExpenses.reduce((sum, e) => sum + e.amount, 0);
   doc.setFillColor(236, 253, 245); // emerald-50
   doc.setDrawColor(167, 243, 208); // emerald-200
   doc.roundedRect(margin + boxWidth + 6, currentY, boxWidth, boxHeight, 2, 2, 'FD');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(5, 150, 105);
-  doc.text(`TOTAL DO MÊS (${expenses.length} DESPESAS)`, margin + boxWidth + 10, currentY + 5);
+  doc.text(`TOTAL DO MÊS (${sortedExpenses.length} DESPESAS)`, margin + boxWidth + 10, currentY + 5);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(4, 120, 87);
@@ -151,7 +154,7 @@ export async function exportExpensesToPdf(
   currentY += boxHeight + 8;
 
   // --- TABELA DE ITENS (autoTable) ---
-  const tableRows = expenses.map((exp, index) => {
+  const tableRows = sortedExpenses.map((exp, index) => {
     const formattedDate = exp.date ? exp.date.split('-').reverse().join('/') : '';
     const hasReceipt = exp.receipt ? `Doc #${index + 1}` : 'Sem anexo';
     return [
@@ -251,9 +254,9 @@ export async function exportExpensesToPdf(
   doc.setTextColor(100, 116, 139);
   doc.text('Aprovação & Conferência Contábil', margin + signWidth + 20, finalY + 24);
 
-  // --- ANEXO DOS COMPROVANTES (FOTOS / RECIBOS) ---
+  // --- ANEXO DOS COMPROVANTES (FOTOS / RECIBOS) ORDENADOS POR DATA ---
   if (includeReceipts) {
-    const expensesWithReceipts = expenses
+    const expensesWithReceipts = sortedExpenses
       .map((exp, index) => ({ exp, itemIndex: index + 1 }))
       .filter((item) => item.exp.receipt && item.exp.receipt.dataUrl);
 
