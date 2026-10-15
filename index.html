@@ -3,6 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // Ignora erros esperados de WebSocket HMR desativado no ambiente AI Studio
+      window.addEventListener('error', function(e) {
+        if (e.message && (e.message.indexOf('WebSocket') !== -1 || (e.filename && e.filename.indexOf('@vite/client') !== -1))) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function(e) {
+        if (e.reason && String(e.reason).indexOf('WebSocket') !== -1) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+        }
+      });
+    </script>
     <title>Assistente de Gastos - Cartão Corporativo & Despesas</title>
     <meta name="description" content="Gestor inteligente de despesas de cartão corporativo com leitura automatizada de comprovantes via IA, painel executivo e relatórios em PDF e Excel." />
     <meta property="og:title" content="Assistente de Gastos - Cartão Corporativo & Despesas" />
