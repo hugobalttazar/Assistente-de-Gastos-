@@ -170,35 +170,35 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
 
       {/* Tabela de Despesas - Estilo Mesa de Conferência */}
       <div className="bg-[#111827] border border-slate-800 rounded-xl overflow-hidden shadow-xl">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="w-full overflow-hidden">
+          <table className="w-full text-left border-collapse table-fixed">
             <thead>
               <tr className="bg-slate-900/90 border-b border-slate-800 text-[11px] font-semibold text-slate-400">
-                <th className="py-3 px-4 w-12 text-center">Item</th>
-                <th className="py-3 px-3 w-16 text-center">Anexo</th>
+                <th className="py-3 px-2 w-[44px] text-center">Item</th>
+                <th className="py-3 px-2 w-[52px] text-center">Anexo</th>
                 <th
                   onClick={() => toggleSort('date')}
-                  className="py-3 px-3 cursor-pointer hover:text-white transition-colors select-none"
+                  className="py-3 px-2 w-[88px] cursor-pointer hover:text-white transition-colors select-none"
                 >
                   <div className="flex items-center gap-1">
                     <span>Data</span>
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
-                <th className="py-3 px-3">Estabelecimento / Fornecedor</th>
-                <th className="py-3 px-3">Categoria</th>
-                <th className="py-3 px-3 min-w-[200px]">Descrição / Justificativa</th>
+                <th className="py-3 px-3 w-[22%]">Estabelecimento / Fornecedor</th>
+                <th className="py-3 px-2 w-[14%]">Categoria</th>
+                <th className="py-3 px-3">Descrição / Justificativa</th>
                 <th
                   onClick={() => toggleSort('amount')}
-                  className="py-3 px-4 text-right cursor-pointer hover:text-white transition-colors select-none"
+                  className="py-3 px-3 w-[100px] text-right cursor-pointer hover:text-white transition-colors select-none"
                 >
                   <div className="flex items-center justify-end gap-1">
                     <span>Valor (R$)</span>
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
-                <th className="py-3 px-3 text-center">Status</th>
-                <th className="py-3 px-4 text-right w-24">Ações</th>
+                <th className="py-3 px-2 w-[92px] text-center">Status</th>
+                <th className="py-3 px-3 w-[76px] text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80 text-xs">
@@ -273,28 +273,28 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
                       </td>
 
                       {/* Fornecedor */}
-                      <td className="py-3 px-3">
-                        <div className="font-semibold text-white truncate max-w-[180px]">
+                      <td className="py-3 px-3 overflow-hidden">
+                        <div className="font-semibold text-white truncate" title={exp.merchant}>
                           {exp.merchant}
                         </div>
                         {exp.cnpj && (
-                          <div className="text-[10px] text-slate-400 font-mono">
+                          <div className="text-[10px] text-slate-400 font-mono truncate" title={exp.cnpj}>
                             {exp.cnpj}
                           </div>
                         )}
                       </td>
 
                       {/* Categoria */}
-                      <td className="py-3 px-3 whitespace-nowrap">
-                        <span className="text-slate-300 font-medium text-[11px]">
+                      <td className="py-3 px-2 overflow-hidden">
+                        <span className="text-slate-300 font-medium text-[11px] truncate block" title={exp.category}>
                           {exp.category}
                         </span>
                       </td>
 
                       {/* Descrição / Justificativa (com edição rápida) */}
-                      <td className="py-3 px-3">
+                      <td className="py-3 px-3 overflow-hidden">
                         {isEditing ? (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <input
                               type="text"
                               value={editDescription}
@@ -304,14 +304,14 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
                             />
                             <button
                               onClick={() => handleSaveEdit(exp)}
-                              className="p-1 text-emerald-400 hover:text-emerald-300 cursor-pointer"
+                              className="p-1 text-emerald-400 hover:text-emerald-300 cursor-pointer shrink-0"
                               title="Salvar"
                             >
                               <Check className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => setEditingExpenseId(null)}
-                              className="p-1 text-slate-400 hover:text-white cursor-pointer"
+                              className="p-1 text-slate-400 hover:text-white cursor-pointer shrink-0"
                               title="Cancelar"
                             >
                               <X className="w-4 h-4" />
@@ -320,11 +320,13 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
                         ) : (
                           <div
                             onClick={() => handleStartEdit(exp)}
-                            className="text-slate-300 hover:text-white cursor-pointer group/desc flex items-center justify-between gap-2"
-                            title="Clique para editar a justificativa"
+                            className="text-slate-300 hover:text-white cursor-pointer group/desc flex items-center justify-between gap-1.5 overflow-hidden"
+                            title={`Justificativa: ${exp.description}\n(Clique para editar)`}
                           >
-                            <span className="truncate max-w-sm">
-                              {exp.description}
+                            <span className="truncate block font-normal">
+                              {exp.description.length > 46
+                                ? `${exp.description.slice(0, 46)}...`
+                                : exp.description}
                             </span>
                             <Edit3 className="w-3 h-3 text-slate-600 group-hover/desc:text-slate-400 shrink-0 opacity-0 group-hover/desc:opacity-100 transition-opacity" />
                           </div>

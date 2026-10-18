@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { CorporateExpense, CompanySettings } from '../types/expense';
+import { convertPdfFirstPageToImage } from './pdfToImage';
 
 // Converte qualquer formato de imagem ou PDF para PNG/JPEG compatível com jsPDF
 async function prepareImageForPdf(
@@ -11,7 +12,6 @@ async function prepareImageForPdf(
   // Se o comprovante tiver sido gravado como PDF puro, converte agora para JPEG
   if (dataUrl.startsWith('data:application/pdf')) {
     try {
-      const { convertPdfFirstPageToImage } = await import('./pdfToImage');
       const converted = await convertPdfFirstPageToImage(dataUrl);
       return {
         dataUrl: converted.dataUrl,
