@@ -7,7 +7,7 @@
 ## 🌟 Principais Recursos
 
 ### 1. 🤖 Digitalização Inteligente de Comprovantes com IA (Gemini 3.8 Flash)
-- **Upload Multimodal**: Suporte para fotos de recibos, cupons fiscais brasileiros (SAT, NFC-e, NF-e), notas de restaurantes, faturas e recibos de táxi/Uber em formato **JPG, PNG, WebP ou PDF** (até 50MB).
+- **Upload Multimodal & Conversão Automática**: Suporte para fotos e PDFs (SAT, NFC-e, NF-e, faturas, DANFEs até 50MB). **Arquivos em PDF são convertidos automaticamente em imagens JPEG de alta definição** para que a folha da nota fiscal apareça de forma nítida e visual tanto na tela do relatório mensal quanto nas páginas anexas do PDF gerado.
 - **Extração Automatizada com Schema Estruturado**:
   - **Data da transação** (YYYY-MM-DD);
   - **Valor total** em reais (R$);

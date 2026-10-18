@@ -15,6 +15,7 @@ import {
 import { CorporateExpense, CompanySettings } from '../types/expense';
 import { exportExpensesToExcel } from '../utils/excelExport';
 import { exportExpensesToPdf } from '../utils/pdfExport';
+import { convertPdfFirstPageToImage } from '../utils/pdfToImage';
 
 interface MonthlyReportViewProps {
   expenses: CorporateExpense[];
@@ -22,6 +23,60 @@ interface MonthlyReportViewProps {
   selectedMonth: string; // YYYY-MM
   onViewExpense: (expense: CorporateExpense) => void;
 }
+
+// Componente para renderizar a imagem do comprovante ou converter PDF em tempo real
+const ReportVoucherImage: React.FC<{
+  receipt: any;
+  merchant: string;
+  onClick: () => void;
+}> = ({ receipt, merchant, onClick }) => {
+  const [dataUrl, setDataUrl] = useState<string>(() => {
+    return receipt.dataUrl && receipt.dataUrl.startsWith('data:image/') ? receipt.dataUrl : '';
+  });
+  const [loading, setLoading] = useState<boolean>(false);
+
+  React.useEffect(() => {
+    if (receipt.dataUrl && receipt.dataUrl.startsWith('data:image/')) {
+      setDataUrl(receipt.dataUrl);
+      return;
+    }
+    if (receipt.dataUrl && (receipt.dataUrl.startsWith('data:application/pdf') || (receipt.name && receipt.name.endsWith('.pdf')))) {
+      setLoading(true);
+      convertPdfFirstPageToImage(receipt.dataUrl)
+        .then((res) => setDataUrl(res.dataUrl))
+        .catch((err) => console.warn('Falha na renderização de imagem do PDF no relatório:', err))
+        .finally(() => setLoading(false));
+    }
+  }, [receipt]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-6 text-slate-500">
+        <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-2" />
+        <span className="text-[11px] font-medium text-slate-600">Convertendo página do PDF para imagem...</span>
+      </div>
+    );
+  }
+
+  if (dataUrl) {
+    return (
+      <img
+        src={dataUrl}
+        alt={`Comprovante ${merchant}`}
+        className="max-h-[340px] max-w-full object-contain cursor-pointer hover:opacity-90 transition-opacity rounded shadow-xs"
+        onClick={onClick}
+      />
+    );
+  }
+
+  return (
+    <div className="text-center p-4">
+      <FileText className="w-12 h-12 text-slate-400 mx-auto mb-1" />
+      <span className="text-xs font-mono text-slate-700 block">{receipt.name}</span>
+      <span className="text-[10px] text-slate-500">(Documento PDF em anexo)</span>
+    </div>
+  );
+};
 
 export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
   expenses,
@@ -353,23 +408,11 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
 
                     {/* Imagem do Comprovante */}
                     <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-center min-h-[220px] max-h-[360px] overflow-hidden">
-                      {isPdf ? (
-                        <div className="text-center p-4">
-                          <FileText className="w-12 h-12 text-slate-500 mx-auto mb-1" />
-                          <span className="text-xs font-mono text-slate-700 block">
-                            {exp.receipt.name}
-                          </span>
-                          <span className="text-[10px] text-slate-500">
-                            (Documento PDF em anexo)
-                          </span>
-                        </div>
-                      ) : (
-                        <img
-                          src={exp.receipt.dataUrl}
-                          alt={`Comprovante ${exp.merchant}`}
-                          className="max-h-[340px] max-w-full object-contain"
-                        />
-                      )}
+                      <ReportVoucherImage
+                        receipt={exp.receipt}
+                        merchant={exp.merchant}
+                        onClick={() => onViewExpense(exp)}
+                      />
                     </div>
                   </div>
                 );

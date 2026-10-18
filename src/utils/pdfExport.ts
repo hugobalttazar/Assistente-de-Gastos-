@@ -2,11 +2,27 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { CorporateExpense, CompanySettings } from '../types/expense';
 
-// Converte qualquer formato de imagem (SVG, WebP, JPEG, PNG) para PNG/JPEG compatível com jsPDF
+// Converte qualquer formato de imagem ou PDF para PNG/JPEG compatível com jsPDF
 async function prepareImageForPdf(
   dataUrl: string
 ): Promise<{ dataUrl: string; format: 'JPEG' | 'PNG'; width: number; height: number } | null> {
   if (!dataUrl) return null;
+
+  // Se o comprovante tiver sido gravado como PDF puro, converte agora para JPEG
+  if (dataUrl.startsWith('data:application/pdf')) {
+    try {
+      const { convertPdfFirstPageToImage } = await import('./pdfToImage');
+      const converted = await convertPdfFirstPageToImage(dataUrl);
+      return {
+        dataUrl: converted.dataUrl,
+        format: 'JPEG',
+        width: converted.width,
+        height: converted.height,
+      };
+    } catch (e) {
+      console.warn('Falha ao renderizar PDF para o relatório impresso:', e);
+    }
+  }
 
   return new Promise((resolve) => {
     const img = new Image();

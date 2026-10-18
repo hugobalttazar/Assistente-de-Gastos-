@@ -3,6 +3,7 @@ export interface ReceiptFile {
   name: string;
   type: string; // mimeType
   size: number;
+  originalPdfUrl?: string; // Mantém o PDF original se convertido para visualização
 }
 
 export type ExpenseCategory =

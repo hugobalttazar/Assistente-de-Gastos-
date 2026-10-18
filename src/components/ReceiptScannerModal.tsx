@@ -14,6 +14,7 @@ import {
   FileCheck,
 } from 'lucide-react';
 import { CorporateExpense, ExpenseCategory, ReceiptFile } from '../types/expense';
+import { convertPdfFirstPageToImage } from '../utils/pdfToImage';
 
 interface ReceiptScannerModalProps {
   isOpen: boolean;
@@ -66,13 +67,31 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
     setScanError(null);
     setConfidenceNote(null);
 
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
+    reader.onload = async (e) => {
+      let dataUrl = e.target?.result as string;
+      let effectiveType = file.type || (isPdf ? 'application/pdf' : 'image/jpeg');
+
+      // Converte a folha do PDF em imagem JPEG de alta resolução para exibição no relatório
+      if (isPdf) {
+        try {
+          setIsScanning(true);
+          const converted = await convertPdfFirstPageToImage(dataUrl);
+          dataUrl = converted.dataUrl;
+          effectiveType = 'image/jpeg';
+        } catch (pdfErr) {
+          console.warn('Falha na conversão de PDF para imagem:', pdfErr);
+        } finally {
+          setIsScanning(false);
+        }
+      }
+
       const receiptFile: ReceiptFile = {
         dataUrl,
         name: file.name,
-        type: file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+        type: effectiveType,
         size: file.size,
       };
       setSelectedFile(receiptFile);
@@ -426,7 +445,7 @@ Extraia em JSON estrito:
                     </div>
                   )}
 
-                  {isPdf ? (
+                  {isPdf && !selectedFile.dataUrl.startsWith('data:image/') ? (
                     <div className="flex flex-col items-center justify-center text-center py-8">
                       <FileText className="w-16 h-16 text-emerald-400 mb-2" />
                       <span className="text-xs font-mono text-slate-300">
@@ -437,7 +456,7 @@ Extraia em JSON estrito:
                     <img
                       src={selectedFile.dataUrl}
                       alt="Comprovante"
-                      className="max-h-[300px] w-auto object-contain rounded"
+                      className="max-h-[300px] w-auto object-contain rounded shadow-xs"
                     />
                   )}
                 </div>

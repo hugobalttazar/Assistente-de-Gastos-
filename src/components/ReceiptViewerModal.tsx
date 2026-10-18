@@ -29,8 +29,9 @@ export const ReceiptViewerModal: React.FC<ReceiptViewerModalProps> = ({
   if (!expense) return null;
 
   const receipt = expense.receipt;
-  const isPdf =
-    receipt?.type === 'application/pdf' || receipt?.name.endsWith('.pdf');
+  const isPurePdf =
+    Boolean(receipt?.type === 'application/pdf' || receipt?.name?.endsWith('.pdf')) &&
+    !receipt?.dataUrl?.startsWith('data:image/');
 
   const handleZoomIn = () => setZoom((prev) => Math.min(prev + 0.25, 3));
   const handleZoomOut = () => setZoom((prev) => Math.max(prev - 0.25, 0.5));
@@ -39,8 +40,10 @@ export const ReceiptViewerModal: React.FC<ReceiptViewerModalProps> = ({
   const handleDownload = () => {
     if (!receipt) return;
     const a = document.createElement('a');
-    a.href = receipt.dataUrl;
-    a.download = receipt.name || `comprovante_${expense.id}.png`;
+    a.href = receipt.originalPdfUrl || receipt.dataUrl;
+    a.download = receipt.originalPdfUrl
+      ? receipt.name.replace(/\.jpg$/i, '.pdf')
+      : receipt.name || `comprovante_${expense.id}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -93,7 +96,7 @@ export const ReceiptViewerModal: React.FC<ReceiptViewerModalProps> = ({
           {/* Lado Esquerdo: Área de Exibição do Comprovante (8 colunas) */}
           <div className="lg:col-span-8 bg-slate-950 flex flex-col relative border-b lg:border-b-0 lg:border-r border-slate-800">
             {/* Controles de Zoom e Rotação */}
-            {!isPdf && receipt && (
+            {!isPurePdf && receipt && (
               <div className="absolute top-4 left-4 z-10 flex items-center gap-1 bg-slate-900/90 border border-slate-800 rounded-lg p-1 backdrop-blur-xs">
                 <button
                   onClick={handleZoomIn}
@@ -131,7 +134,7 @@ export const ReceiptViewerModal: React.FC<ReceiptViewerModalProps> = ({
             {/* Visualizador */}
             <div className="flex-1 overflow-auto flex items-center justify-center p-6 min-h-[360px] max-h-[65vh]">
               {receipt ? (
-                isPdf ? (
+                isPurePdf ? (
                   <div className="flex flex-col items-center justify-center text-center p-8 bg-slate-900/60 rounded-xl border border-slate-800 max-w-md">
                     <FileText className="w-16 h-16 text-emerald-400 mb-3" />
                     <h3 className="text-sm font-semibold text-white mb-1">
