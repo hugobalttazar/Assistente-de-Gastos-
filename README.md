@@ -53,6 +53,16 @@
   - Botão **"Instalar no PC"** no cabeçalho e nas configurações.
   - Cria ícone na **Área de Trabalho**, no **Menu Iniciar** e fixa na **Barra de Tarefas**.
   - Roda em janela limpa e dedicada (sem barra de URL ou botões de navegador).
+
+### 7. 🔒 Armazenamento Privado no Google Drive & Gestão de Leads
+- **Armazenamento 100% no Google Drive do Usuário**:
+  - Botão **"Realizar Login"** com Google no topo superior direito.
+  - O aplicativo cria automaticamente a pasta **`Assistente de Gastos`** no Drive do colaborador.
+  - Os dados das despesas são gravados de forma isolada e privada na nuvem do próprio usuário (`banco_de_dados_despesas.json`).
+  - Utiliza o escopo oficial de privilégio mínimo `drive.file` (o aplicativo não acessa nenhum outro arquivo pessoal do colaborador).
+- **Captação de Leads & Consentimento LGPD**:
+  - No primeiro login, o sistema solicita o **Telefone / WhatsApp corporativo** e apresenta o **Termo de Adesão & Consentimento** em conformidade com a LGPD (Lei nº 13.709/2018).
+  - O criador da plataforma tem acesso ao **Painel de Leads** (no menu superior direito), onde pode consultar todos os usuários cadastrados, iniciar conversas no WhatsApp e exportar a lista para **Excel (`.xlsx`)**.
   - Suporta também instalação em dispositivos móveis (Android e iOS Safari).
 
 ### 7. 🔒 Armazenamento Local Seguro & Prontidão para GitHub Pages / Firebase

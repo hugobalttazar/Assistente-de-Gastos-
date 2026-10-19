@@ -1,6 +1,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import http from 'http';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type } from '@google/genai';
@@ -17,6 +18,84 @@ const PORT = 3000;
 // Permite payloads de imagem/PDF em base64 até 50MB
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// --- ARMAZENAMENTO DE LEADS (Cadastro de usuários e consentimento) ---
+const LEADS_FILE = path.join(__dirname, 'data', 'leads.json');
+
+function ensureLeadsStorage() {
+  const dir = path.dirname(LEADS_FILE);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  if (!fs.existsSync(LEADS_FILE)) {
+    fs.writeFileSync(LEADS_FILE, JSON.stringify([], null, 2), 'utf-8');
+  }
+}
+
+function getStoredLeads(): any[] {
+  ensureLeadsStorage();
+  try {
+    const raw = fs.readFileSync(LEADS_FILE, 'utf-8');
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+function saveStoredLeads(leads: any[]) {
+  ensureLeadsStorage();
+  fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2), 'utf-8');
+}
+
+// Endpoint para registrar novo lead ou atualizar dados de contato
+app.post('/api/leads', (req, res) => {
+  try {
+    const { name, email, phone, photoUrl, consentAccepted } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'E-mail é obrigatório.' });
+    }
+
+    const leads = getStoredLeads();
+    const existingIndex = leads.findIndex(
+      (l: any) => l.email?.toLowerCase() === email.toLowerCase()
+    );
+
+    const leadData = {
+      id: existingIndex >= 0 ? leads[existingIndex].id : 'lead_' + Date.now(),
+      name: name || 'Usuário Google',
+      email: email.toLowerCase(),
+      phone: phone || '',
+      photoUrl: photoUrl || '',
+      consentAccepted: Boolean(consentAccepted),
+      consentTimestamp: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdAt:
+        existingIndex >= 0 ? leads[existingIndex].createdAt : new Date().toISOString(),
+    };
+
+    if (existingIndex >= 0) {
+      leads[existingIndex] = { ...leads[existingIndex], ...leadData };
+    } else {
+      leads.push(leadData);
+    }
+
+    saveStoredLeads(leads);
+    return res.json({ success: true, lead: leadData });
+  } catch (error: any) {
+    console.error('Erro ao salvar lead:', error);
+    return res.status(500).json({ error: 'Erro ao salvar lead no servidor.' });
+  }
+});
+
+// Endpoint para listar todos os leads cadastrados (Painel do Criador da Plataforma)
+app.get('/api/leads', (req, res) => {
+  try {
+    const leads = getStoredLeads();
+    return res.json({ success: true, leads, total: leads.length });
+  } catch (error: any) {
+    return res.status(500).json({ error: 'Erro ao listar leads.' });
+  }
+});
 
 // Inicialização do cliente Gemini server-side
 const ai = new GoogleGenAI({

@@ -1,6 +1,9 @@
 import React from 'react';
 import { Plus, CreditCard, Calendar } from 'lucide-react';
+import { User } from 'firebase/auth';
 import { PWAInstallButton } from './PWAInstallButton';
+import { GoogleDriveUserMenu } from './GoogleDriveUserMenu';
+import { DriveSyncInfo } from '../services/googleDriveStorage';
 
 interface HeaderProps {
   currentTab: 'dashboard' | 'table' | 'report' | 'settings';
@@ -8,6 +11,13 @@ interface HeaderProps {
   onOpenScanner: () => void;
   selectedMonth: string; // YYYY-MM
   onMonthChange: (month: string) => void;
+  user: User | null;
+  syncInfo: DriveSyncInfo | null;
+  isSyncing: boolean;
+  onLoginSuccess: (user: User, accessToken: string) => void;
+  onLogout: () => void;
+  onManualSync: () => void;
+  onOpenLeadsModal: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -16,6 +26,13 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenScanner,
   selectedMonth,
   onMonthChange,
+  user,
+  syncInfo,
+  isSyncing,
+  onLoginSuccess,
+  onLogout,
+  onManualSync,
+  onOpenLeadsModal,
 }) => {
   return (
     <header className="border-b border-slate-800 bg-[#0B0F17]/90 backdrop-blur-md sticky top-0 z-40">
@@ -96,11 +113,23 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={onOpenScanner}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 active:scale-95 transition-all rounded-lg shadow-sm whitespace-nowrap shrink-0 cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 active:scale-95 transition-all rounded-lg shadow-sm whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>Escanear Comprovante</span>
+              <span className="hidden sm:inline">Escanear Comprovante</span>
+              <span className="sm:hidden">Escanear</span>
             </button>
+
+            {/* Menu do Usuário & Conexão Google Drive */}
+            <GoogleDriveUserMenu
+              user={user}
+              syncInfo={syncInfo}
+              isSyncing={isSyncing}
+              onLoginSuccess={onLoginSuccess}
+              onLogout={onLogout}
+              onManualSync={onManualSync}
+              onOpenLeadsModal={onOpenLeadsModal}
+            />
           </div>
         </div>
 
