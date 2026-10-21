@@ -2,17 +2,27 @@ import React, { useState, useRef, useEffect } from 'react';
 import { User } from 'firebase/auth';
 import {
   Cloud,
-  CloudCheck,
   RefreshCw,
   FolderOpen,
   LogOut,
   Users,
   ChevronDown,
   ExternalLink,
-  ShieldCheck,
+  ShieldAlert,
   AlertCircle,
+  Copy,
+  Check,
+  X,
+  ArrowRight,
+  Globe,
 } from 'lucide-react';
-import { googleSignIn, logout, getAccessToken } from '../services/googleAuth';
+import {
+  googleSignIn,
+  googleSignInRedirect,
+  logout,
+  parseAuthError,
+  AuthErrorInfo,
+} from '../services/googleAuth';
 import { DriveSyncInfo } from '../services/googleDriveStorage';
 
 interface GoogleDriveUserMenuProps {
@@ -36,7 +46,8 @@ export const GoogleDriveUserMenu: React.FC<GoogleDriveUserMenuProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [authErrorInfo, setAuthErrorInfo] = useState<AuthErrorInfo | null>(null);
+  const [copiedDomain, setCopiedDomain] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Fecha o dropdown ao clicar fora
@@ -51,7 +62,7 @@ export const GoogleDriveUserMenu: React.FC<GoogleDriveUserMenuProps> = ({
   }, []);
 
   const handleSignInClick = async () => {
-    setAuthError(null);
+    setAuthErrorInfo(null);
     setIsLoadingAuth(true);
     try {
       const result = await googleSignIn();
@@ -61,10 +72,31 @@ export const GoogleDriveUserMenu: React.FC<GoogleDriveUserMenuProps> = ({
     } catch (err: any) {
       console.error('Falha no login com Google:', err);
       if (err.code !== 'auth/popup-closed-by-user') {
-        setAuthError('Não foi possível conectar com o Google. Tente novamente.');
+        const errorInfo = parseAuthError(err);
+        setAuthErrorInfo(errorInfo);
       }
     } finally {
       setIsLoadingAuth(false);
+    }
+  };
+
+  const handleSignInRedirectClick = async () => {
+    setAuthErrorInfo(null);
+    setIsLoadingAuth(true);
+    try {
+      await googleSignInRedirect();
+    } catch (err: any) {
+      console.error('Falha no login com redirecionamento:', err);
+      setAuthErrorInfo(parseAuthError(err));
+      setIsLoadingAuth(false);
+    }
+  };
+
+  const handleCopyDomain = () => {
+    if (authErrorInfo?.currentDomain) {
+      navigator.clipboard.writeText(authErrorInfo.currentDomain);
+      setCopiedDomain(true);
+      setTimeout(() => setCopiedDomain(false), 2500);
     }
   };
 
@@ -109,9 +141,155 @@ export const GoogleDriveUserMenu: React.FC<GoogleDriveUserMenuProps> = ({
           <span>Realizar Login</span>
         </button>
 
-        {authError && (
-          <div className="absolute right-0 top-full mt-2 w-64 p-2 bg-red-950 border border-red-800 text-red-200 text-[11px] rounded-lg shadow-xl z-50">
-            {authError}
+        {/* Modal / Card Informativo com Diagnóstico do Erro */}
+        {authErrorInfo && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150">
+            <div className="bg-[#111827] border border-slate-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl relative text-left">
+              <button
+                type="button"
+                onClick={() => setAuthErrorInfo(null)}
+                className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                title="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              {authErrorInfo.isUnauthorizedDomain ? (
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                      <ShieldAlert className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-white">
+                        {authErrorInfo.title}
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Configuração de segurança do Google Authentication
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-300 leading-relaxed mb-4">
+                    Por segurança, o Google exige que o endereço onde a plataforma está hospedada (neste caso, o <strong>GitHub Pages</strong>) esteja cadastrado na lista de <strong>Domínios Autorizados</strong> do seu projeto Firebase.
+                  </p>
+
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 mb-4 space-y-2">
+                    <span className="text-[11px] font-semibold text-slate-400 block">
+                      Domínio a ser autorizado:
+                    </span>
+                    <div className="flex items-center justify-between gap-2 p-2 bg-slate-950 border border-slate-800 rounded-lg">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Globe className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span className="font-mono text-xs text-emerald-300 truncate">
+                          {authErrorInfo.currentDomain}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleCopyDomain}
+                        className="px-2.5 py-1 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-white rounded flex items-center gap-1.5 cursor-pointer shrink-0 transition-colors"
+                      >
+                        {copiedDomain ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Copiado!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Copiar</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3.5 mb-5 text-xs text-slate-300 space-y-2">
+                    <span className="font-semibold text-white block">
+                      Passo a passo rápido (apenas 1 vez):
+                    </span>
+                    <ol className="list-decimal list-inside space-y-1.5 text-slate-400 text-[11px]">
+                      <li>
+                        Abra o <strong className="text-white">Firebase Console</strong> clicando no botão abaixo.
+                      </li>
+                      <li>
+                        Vá na aba <strong className="text-white">Settings (Configurações)</strong> &gt; <strong className="text-white">Authorized domains (Domínios autorizados)</strong>.
+                      </li>
+                      <li>
+                        Clique em <strong className="text-white">Adicionar domínio</strong>, cole <code className="text-emerald-400 font-mono">{authErrorInfo.currentDomain}</code> e salve.
+                      </li>
+                    </ol>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5">
+                    <a
+                      href={authErrorInfo.consoleSettingsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-md"
+                    >
+                      <span>Abrir Firebase Console</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                    <button
+                      type="button"
+                      onClick={handleSignInClick}
+                      className="px-4 py-2 text-xs font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <span>Já adicionei, Tentar Login</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center shrink-0">
+                      <AlertCircle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">
+                        {authErrorInfo.title}
+                      </h3>
+                      <span className="font-mono text-[10px] text-slate-500">
+                        {authErrorInfo.code}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-300 leading-relaxed mb-5">
+                    {authErrorInfo.message}
+                  </p>
+
+                  <div className="flex items-center justify-end gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setAuthErrorInfo(null)}
+                      className="px-3.5 py-2 text-xs font-semibold text-slate-400 hover:text-white bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                    >
+                      Fechar
+                    </button>
+                    {authErrorInfo.isPopupBlocked && (
+                      <button
+                        type="button"
+                        onClick={handleSignInRedirectClick}
+                        className="px-4 py-2 text-xs font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-xl transition-colors cursor-pointer"
+                      >
+                        Tentar via Redirecionamento
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleSignInClick}
+                      className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition-colors cursor-pointer"
+                    >
+                      Tentar Novamente
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>
