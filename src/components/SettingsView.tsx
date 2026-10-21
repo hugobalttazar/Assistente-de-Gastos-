@@ -26,6 +26,7 @@ import { PWAInstallButton } from './PWAInstallButton';
 import {
   getStoredOpenRouterKey,
   removeOpenRouterKey,
+  saveOpenRouterKey,
   createOpenRouterAuthUrl,
   FREE_VISION_MODELS,
 } from '../services/openRouterService';
@@ -47,6 +48,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isExporting, setIsExporting] = useState(false);
   const [openRouterKey, setOpenRouterKey] = useState<string | null>(getStoredOpenRouterKey());
   const [isConnectingOpenRouter, setIsConnectingOpenRouter] = useState(false);
+  const [manualKeyInput, setManualKeyInput] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -372,6 +374,37 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             )}
           </div>
         </div>
+
+        {!openRouterKey && (
+          <div className="p-3 bg-slate-900/90 rounded-lg border border-slate-800 space-y-1.5 mb-3">
+            <span className="text-[11px] text-slate-400 block font-medium">
+              Ou cole uma chave de API do OpenRouter gerada manualmente:
+            </span>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="password"
+                placeholder="sk-or-v1-..."
+                value={manualKeyInput}
+                onChange={(e) => setManualKeyInput(e.target.value)}
+                className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (manualKeyInput.trim()) {
+                    saveOpenRouterKey(manualKeyInput.trim());
+                    setOpenRouterKey(manualKeyInput.trim());
+                    setManualKeyInput('');
+                  }
+                }}
+                disabled={!manualKeyInput.trim()}
+                className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 text-xs font-semibold rounded-lg transition-colors cursor-pointer shrink-0"
+              >
+                Salvar Chave
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-3 text-xs text-slate-300 leading-relaxed">
           <p>

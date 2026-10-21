@@ -16,6 +16,7 @@ import { LeadRegistration, registerLead } from '../services/leadsService';
 import {
   createOpenRouterAuthUrl,
   getStoredOpenRouterKey,
+  saveOpenRouterKey,
 } from '../services/openRouterService';
 
 interface LeadRegistrationModalProps {
@@ -42,6 +43,8 @@ export const LeadRegistrationModal: React.FC<LeadRegistrationModalProps> = ({
     Boolean(getStoredOpenRouterKey())
   );
   const [isConnectingOpenRouter, setIsConnectingOpenRouter] = useState(false);
+  const [showManualKeyInput, setShowManualKeyInput] = useState(false);
+  const [manualKey, setManualKey] = useState('');
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -233,24 +236,67 @@ export const LeadRegistrationModal: React.FC<LeadRegistrationModalProps> = ({
               O OpenRouter roteia inteligência artificial gratuita para leitura de comprovantes. Ao autorizar, o sistema captura sua chave de API automaticamente em 1 clique.
             </p>
             {!hasOpenRouterKey ? (
-              <button
-                type="button"
-                onClick={handleConnectOpenRouter}
-                disabled={isConnectingOpenRouter}
-                className="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
-              >
-                {isConnectingOpenRouter ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-                    <span>Conectando ao OpenRouter...</span>
-                  </>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={handleConnectOpenRouter}
+                  disabled={isConnectingOpenRouter}
+                  className="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                >
+                  {isConnectingOpenRouter ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                      <span>Conectando ao OpenRouter...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Conectar OpenRouter (Captura Automática)</span>
+                    </>
+                  )}
+                </button>
+
+                {!showManualKeyInput ? (
+                  <div className="text-center pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowManualKeyInput(true)}
+                      className="text-[11px] text-slate-400 hover:text-emerald-400 underline underline-offset-2 transition-colors cursor-pointer"
+                    >
+                      Ou inserir chave do OpenRouter manualmente
+                    </button>
+                  </div>
                 ) : (
-                  <>
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Conectar OpenRouter (Captura Automática)</span>
-                  </>
+                  <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                    <label className="text-[10px] text-slate-400 block font-medium">
+                      Cole sua chave de API (sk-or-v1-...):
+                    </label>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="password"
+                        placeholder="sk-or-v1-..."
+                        value={manualKey}
+                        onChange={(e) => setManualKey(e.target.value)}
+                        className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (manualKey.trim()) {
+                            saveOpenRouterKey(manualKey.trim());
+                            setHasOpenRouterKey(true);
+                            setShowManualKeyInput(false);
+                          }
+                        }}
+                        disabled={!manualKey.trim()}
+                        className="px-3 py-1 bg-emerald-400 hover:bg-emerald-300 disabled:opacity-50 text-slate-950 text-xs font-semibold rounded cursor-pointer transition-colors"
+                      >
+                        Salvar
+                      </button>
+                    </div>
+                  </div>
                 )}
-              </button>
+              </div>
             ) : (
               <p className="text-[11px] text-emerald-400 font-medium flex items-center gap-1.5 pt-1">
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />

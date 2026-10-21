@@ -34,6 +34,21 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
 }
 
 /**
+ * Obtém a URL de retorno canônica preservando o caminho de publicação (ex: /Assistente-de-Gastos-/)
+ */
+export function getDefaultCallbackUrl(): string {
+  if (typeof window === 'undefined') return '';
+  let pathname = window.location.pathname || '/';
+  if (pathname.endsWith('index.html')) {
+    pathname = pathname.slice(0, -'index.html'.length);
+  }
+  if (!pathname.endsWith('/')) {
+    pathname += '/';
+  }
+  return window.location.origin + pathname;
+}
+
+/**
  * Inicia o fluxo PKCE gerando os parâmetros e retornando a URL de autorização do OpenRouter
  */
 export async function createOpenRouterAuthUrl(callbackUrl?: string): Promise<{ url: string; verifier: string }> {
@@ -43,7 +58,7 @@ export async function createOpenRouterAuthUrl(callbackUrl?: string): Promise<{ u
   // Guarda o verifier para a troca posterior
   localStorage.setItem(OPENROUTER_VERIFIER_STORAGE, verifier);
 
-  const redirectUri = callbackUrl || window.location.origin;
+  const redirectUri = callbackUrl || getDefaultCallbackUrl();
   const authUrl = `https://openrouter.ai/auth?callback_url=${encodeURIComponent(
     redirectUri
   )}&code_challenge=${challenge}&code_challenge_method=S256`;

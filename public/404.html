@@ -1,14 +1,27 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html>
   <head>
-    <meta charset="utf-8" />
-    <title>Assistente de Gastos</title>
-    <meta http-equiv="refresh" content="0;URL='./'" />
+    <meta charset="utf-8">
+    <title>Assistente de Gastos - Redirecionando...</title>
     <script>
-      window.location.replace('./');
+      // Single Page Application redirect script para GitHub Pages
+      // Redireciona qualquer rota 404 de volta para a raiz do repositório preservando query parameters como ?code=
+      (function() {
+        var pathSegmentsToKeep = 1; // Para páginas de repositório (ex: /Assistente-de-Gastos-/)
+        var l = window.location;
+        var pathArray = l.pathname.split('/').filter(Boolean);
+        var repoName = pathArray.length > 0 ? '/' + pathArray[0] + '/' : '/';
+        
+        // Se a URL contiver parâmetros como ?code=, redireciona diretamente para a base do app
+        var redirectUrl = l.origin + repoName + l.search + l.hash;
+        window.location.replace(redirectUrl);
+      })();
     </script>
   </head>
-  <body>
-    <p>Redirecionando para o Assistente de Gastos...</p>
+  <body style="background-color: #0B0F17; color: #94a3b8; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
+    <div style="text-align: center;">
+      <h2 style="color: #ffffff; margin-bottom: 8px;">Assistente de Gastos</h2>
+      <p style="font-size: 14px;">Redirecionando para a aplicação...</p>
+    </div>
   </body>
 </html>
