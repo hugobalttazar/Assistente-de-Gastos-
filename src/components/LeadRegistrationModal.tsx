@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User } from 'firebase/auth';
 import {
   ShieldCheck,
@@ -10,8 +10,13 @@ import {
   CheckCircle2,
   ArrowRight,
   ExternalLink,
+  Sparkles,
 } from 'lucide-react';
 import { LeadRegistration, registerLead } from '../services/leadsService';
+import {
+  createOpenRouterAuthUrl,
+  getStoredOpenRouterKey,
+} from '../services/openRouterService';
 
 interface LeadRegistrationModalProps {
   isOpen: boolean;
@@ -31,6 +36,41 @@ export const LeadRegistrationModal: React.FC<LeadRegistrationModalProps> = ({
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Estado da chave OpenRouter
+  const [hasOpenRouterKey, setHasOpenRouterKey] = useState<boolean>(
+    Boolean(getStoredOpenRouterKey())
+  );
+  const [isConnectingOpenRouter, setIsConnectingOpenRouter] = useState(false);
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'OPENROUTER_KEY_OBTAINED') {
+        setHasOpenRouterKey(true);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
+  const handleConnectOpenRouter = async () => {
+    setIsConnectingOpenRouter(true);
+    try {
+      const { url } = await createOpenRouterAuthUrl();
+      const popup = window.open(
+        url,
+        'openrouter_auth',
+        'width=650,height=750,menubar=no,toolbar=no,location=no'
+      );
+      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+        window.location.href = url;
+      }
+    } catch (err) {
+      console.error('Falha ao abrir OpenRouter:', err);
+    } finally {
+      setIsConnectingOpenRouter(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -169,6 +209,54 @@ export const LeadRegistrationModal: React.FC<LeadRegistrationModalProps> = ({
             <span className="text-[10px] text-slate-500 mt-1 block">
               Utilizado para suporte, comunicação e validações operacionais.
             </span>
+          </div>
+
+          {/* Inteligência Artificial Gratuita (OpenRouter) */}
+          <div className="mt-3 p-3.5 bg-slate-900/90 border border-slate-800 rounded-xl space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <span className="font-semibold text-white">IA Gratuita Ilimitada (OpenRouter)</span>
+              </div>
+              {hasOpenRouterKey ? (
+                <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 font-medium">
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>Chave Ativada</span>
+                </span>
+              ) : (
+                <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 font-medium">
+                  Recomendado
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              O OpenRouter roteia inteligência artificial gratuita para leitura de comprovantes. Ao autorizar, o sistema captura sua chave de API automaticamente em 1 clique.
+            </p>
+            {!hasOpenRouterKey ? (
+              <button
+                type="button"
+                onClick={handleConnectOpenRouter}
+                disabled={isConnectingOpenRouter}
+                className="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              >
+                {isConnectingOpenRouter ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                    <span>Conectando ao OpenRouter...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Conectar OpenRouter (Captura Automática)</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <p className="text-[11px] text-emerald-400 font-medium flex items-center gap-1.5 pt-1">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Pronto! Seus comprovantes serão lidos gratuitamente pela sua conta OpenRouter.</span>
+              </p>
+            )}
           </div>
 
           {/* Termo de Adesão e Consentimento (Contrato) */}

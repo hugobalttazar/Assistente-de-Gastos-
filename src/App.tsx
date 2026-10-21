@@ -23,6 +23,7 @@ import {
   saveExpensesToDrive,
 } from './services/googleDriveStorage';
 import { getLocalLeadProfile, LeadRegistration } from './services/leadsService';
+import { exchangeCodeForApiKey } from './services/openRouterService';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<
@@ -72,6 +73,36 @@ export default function App() {
       setIsLoading(false);
     }
   };
+
+  // Captura automática de autorização do OpenRouter (via redirect ou popup)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const openRouterCode = urlParams.get('code');
+    if (openRouterCode) {
+      exchangeCodeForApiKey(openRouterCode)
+        .then((key) => {
+          const cleanUrl = window.location.origin + window.location.pathname;
+          window.history.replaceState({}, document.title, cleanUrl);
+          flashNotification('IA Gratuita do OpenRouter conectada com sucesso!');
+
+          if (window.opener) {
+            window.opener.postMessage({ type: 'OPENROUTER_KEY_OBTAINED', key }, '*');
+            window.close();
+          }
+        })
+        .catch((err) => {
+          console.error('Falha ao processar autorização do OpenRouter:', err);
+        });
+    }
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'OPENROUTER_KEY_OBTAINED') {
+        flashNotification('IA Gratuita do OpenRouter conectada e pronta para uso!');
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   // Inicializa a autenticação Google e sincronização com Google Drive
   useEffect(() => {

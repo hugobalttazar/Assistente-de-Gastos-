@@ -15,6 +15,11 @@ import {
 } from 'lucide-react';
 import { CorporateExpense, ExpenseCategory, ReceiptFile } from '../types/expense';
 import { convertPdfFirstPageToImage } from '../utils/pdfToImage';
+import {
+  getStoredOpenRouterKey,
+  scanReceiptWithOpenRouter,
+  createOpenRouterAuthUrl,
+} from '../services/openRouterService';
 
 interface ReceiptScannerModalProps {
   isOpen: boolean;
@@ -134,28 +139,43 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
     try {
       let data: any = null;
 
-      // 1. Tenta chamar o endpoint backend local (/api/scan-receipt)
-      try {
-        const response = await fetch('/api/scan-receipt', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            fileBase64: fileToScan.dataUrl,
-            mimeType: fileToScan.type,
-            filename: fileToScan.name,
-          }),
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success && result.data) {
-            data = result.data;
+      // 1. Prioridade: Usa a conta OpenRouter conectada pelo usuário (IA Gratuita)
+      const openRouterKey = getStoredOpenRouterKey();
+      if (openRouterKey) {
+        try {
+          data = await scanReceiptWithOpenRouter(fileToScan.dataUrl, fileToScan.type);
+          if (data) {
+            setConfidenceNote('Lido com sucesso via IA Gratuita do OpenRouter!');
           }
+        } catch (orErr) {
+          console.warn('OpenRouter retornou erro, tentando fallback:', orErr);
         }
-      } catch (backendErr) {
-        console.warn('Backend /api/scan-receipt não respondeu (ambiente estático/PWA/GitHub Pages):', backendErr);
+      }
+
+      // 2. Se OpenRouter não estiver configurado ou falhou, tenta o endpoint backend local (/api/scan-receipt)
+      if (!data) {
+        try {
+          const response = await fetch('/api/scan-receipt', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              fileBase64: fileToScan.dataUrl,
+              mimeType: fileToScan.type,
+              filename: fileToScan.name,
+            }),
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data) {
+              data = result.data;
+            }
+          }
+        } catch (backendErr) {
+          console.warn('Backend /api/scan-receipt não respondeu (ambiente estático/PWA/GitHub Pages):', backendErr);
+        }
       }
 
       // 2. Se backend falhou (ex: app instalado no PC ou GitHub Pages), usa chamada direta via cliente
