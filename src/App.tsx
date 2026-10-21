@@ -432,10 +432,10 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0F17] text-slate-100 flex flex-col font-sans selection:bg-emerald-500/30 selection:text-emerald-300">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-emerald-500/30 selection:text-emerald-500 transition-colors duration-200">
       {/* Barra de Notificação de Sincronização */}
       {syncNotification && (
-        <div className="bg-emerald-500/90 text-slate-950 font-semibold text-xs py-1.5 px-4 text-center z-50 animate-in fade-in slide-in-from-top-1 flex items-center justify-center gap-2 shadow-md">
+        <div className="bg-emerald-500 text-slate-950 font-semibold text-xs py-1.5 px-4 text-center z-50 animate-in fade-in slide-in-from-top-1 flex items-center justify-center gap-2 shadow-md">
           <span>{syncNotification}</span>
         </div>
       )}
@@ -462,12 +462,12 @@ export default function App() {
         onReopenInvoice={() => handleReopenInvoice()}
       />
 
-      {/* Conteúdo Principal */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Conteúdo Principal com espaço para Bottom Nav no Mobile */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-8">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24 text-slate-500">
-            <div className="w-10 h-10 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin mb-3" />
-            <p className="text-xs font-mono">Carregando painel financeiro...</p>
+            <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3" />
+            <p className="text-xs font-mono text-slate-500 dark:text-slate-400">Carregando painel financeiro...</p>
           </div>
         ) : (
           <>
@@ -520,18 +520,18 @@ export default function App() {
         )}
       </main>
 
-      {/* Rodapé Executivo Mínimo */}
-      <footer className="print:hidden border-t border-slate-900 bg-[#070A10] py-6 text-xs text-slate-500">
+      {/* Rodapé Executivo Mínimo com suporte a modo claro/escuro e margem mobile */}
+      <footer className="print:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-[#070A10] py-6 text-xs text-slate-500 mb-16 md:mb-0 transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-400">Assistente de Gastos</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-300">Assistente de Gastos</span>
             <span aria-hidden="true">·</span>
             <span>Gestão & Prestação de Contas de Cartão Corporativo</span>
           </div>
           <div className="flex items-center gap-2 text-[11px] text-slate-500">
             <span>
               {user ? (
-                <span className="text-emerald-400">
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium">
                   Google Drive Privado: /Assistente de Gastos
                 </span>
               ) : (

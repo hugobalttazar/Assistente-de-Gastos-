@@ -15,6 +15,7 @@ import {
   X,
   ArrowRight,
   Globe,
+  Clock,
 } from 'lucide-react';
 import {
   googleSignIn,
@@ -110,18 +111,18 @@ export const GoogleDriveUserMenu: React.FC<GoogleDriveUserMenuProps> = ({
     onLogout();
   };
 
-  // Se não estiver logado, exibe botão oficial de login/cadastro
+  // Se não estiver logado, exibe botão oficial de login/cadastro em esquadro perfeito
   if (!user) {
     return (
       <div className="relative">
         <button
           onClick={handleSignInClick}
           disabled={isLoadingAuth}
-          className="flex items-center gap-2.5 px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white border border-slate-700 hover:border-emerald-500/50 rounded-xl text-xs font-semibold transition-all shadow-sm cursor-pointer disabled:opacity-50 group"
+          className="h-9 px-3 flex items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-white text-xs font-semibold transition-all shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
           title="Fazer login ou cadastro e conectar sua pasta no Google Drive"
         >
           {isLoadingAuth ? (
-            <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+            <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin shrink-0" />
           ) : (
             <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
               <path
@@ -142,17 +143,18 @@ export const GoogleDriveUserMenu: React.FC<GoogleDriveUserMenuProps> = ({
               />
             </svg>
           )}
-          <span>Realizar Login</span>
+          <span className="hidden sm:inline">Realizar Login</span>
+          <span className="sm:hidden">Login</span>
         </button>
 
         {/* Modal / Card Informativo com Diagnóstico do Erro */}
         {authErrorInfo && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150">
-            <div className="bg-[#111827] border border-slate-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl relative text-left">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-xs animate-in fade-in duration-150">
+            <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl relative text-left">
               <button
                 type="button"
                 onClick={() => setAuthErrorInfo(null)}
-                className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 title="Fechar"
               >
                 <X className="w-5 h-5" />
@@ -161,99 +163,68 @@ export const GoogleDriveUserMenu: React.FC<GoogleDriveUserMenuProps> = ({
               {authErrorInfo.isUnauthorizedDomain ? (
                 <>
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                    <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
                       <ShieldAlert className="w-6 h-6" />
                     </div>
                     <div>
-                      <h3 className="text-base font-bold text-white">
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white">
                         {authErrorInfo.title}
                       </h3>
-                      <p className="text-xs text-slate-400">
-                        Configuração de segurança do Google Authentication
-                      </p>
+                      <span className="font-mono text-xs text-amber-600 dark:text-amber-400">
+                        {authErrorInfo.code}
+                      </span>
                     </div>
                   </div>
 
-                  <p className="text-xs text-slate-300 leading-relaxed mb-4">
-                    Por segurança, o Google exige que o endereço onde a plataforma está hospedada (neste caso, o <strong>GitHub Pages</strong>) esteja cadastrado na lista de <strong>Domínios Autorizados</strong> do seu projeto Firebase.
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-4">
+                    Para autorizar o login do Google neste endereço (como GitHub Pages ou domínio personalizado), adicione o domínio abaixo na lista de domínios autorizados do seu Firebase:
                   </p>
 
-                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 mb-4 space-y-2">
-                    <span className="text-[11px] font-semibold text-slate-400 block">
-                      Domínio a ser autorizado:
+                  <div className="bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-xl p-3 mb-4">
+                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block mb-1">
+                      Domínio atual a ser autorizado:
                     </span>
-                    <div className="flex items-center justify-between gap-2 p-2 bg-slate-950 border border-slate-800 rounded-lg">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Globe className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span className="font-mono text-xs text-emerald-300 truncate">
-                          {authErrorInfo.currentDomain}
-                        </span>
-                      </div>
+                    <div className="flex items-center justify-between gap-2 font-mono text-xs text-emerald-600 dark:text-emerald-400 bg-white dark:bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 select-all">
+                      <span className="truncate">{authErrorInfo.currentDomain}</span>
                       <button
                         type="button"
                         onClick={handleCopyDomain}
-                        className="px-2.5 py-1 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-white rounded flex items-center gap-1.5 cursor-pointer shrink-0 transition-colors"
+                        className="p-1 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer shrink-0"
+                        title="Copiar domínio"
                       >
-                        {copiedDomain ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Copiado!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5 text-slate-400" />
-                            <span>Copiar</span>
-                          </>
-                        )}
+                        {copiedDomain ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                     </div>
                   </div>
 
-                  <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3.5 mb-5 text-xs text-slate-300 space-y-2">
-                    <span className="font-semibold text-white block">
-                      Passo a passo rápido (apenas 1 vez):
-                    </span>
-                    <ol className="list-decimal list-inside space-y-1.5 text-slate-400 text-[11px]">
-                      <li>
-                        Abra o <strong className="text-white">Firebase Console</strong> clicando no botão abaixo.
-                      </li>
-                      <li>
-                        Vá na aba <strong className="text-white">Settings (Configurações)</strong> &gt; <strong className="text-white">Authorized domains (Domínios autorizados)</strong>.
-                      </li>
-                      <li>
-                        Clique em <strong className="text-white">Adicionar domínio</strong>, cole <code className="text-emerald-400 font-mono">{authErrorInfo.currentDomain}</code> e salve.
-                      </li>
-                    </ol>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5">
+                  <div className="flex items-center justify-end gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setAuthErrorInfo(null)}
+                      className="px-3.5 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                    >
+                      Fechar
+                    </button>
                     <a
                       href={authErrorInfo.consoleSettingsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-md"
+                      className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-colors cursor-pointer"
                     >
+                      <Globe className="w-3.5 h-3.5" />
                       <span>Abrir Firebase Console</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
+                      <ExternalLink className="w-3 h-3 ml-0.5" />
                     </a>
-                    <button
-                      type="button"
-                      onClick={handleSignInClick}
-                      className="px-4 py-2 text-xs font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <span>Já adicionei, Tentar Login</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
                   </div>
                 </>
               ) : (
                 <>
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center shrink-0">
                       <AlertCircle className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-white">
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                         {authErrorInfo.title}
                       </h3>
                       <span className="font-mono text-[10px] text-slate-500">
@@ -262,7 +233,7 @@ export const GoogleDriveUserMenu: React.FC<GoogleDriveUserMenuProps> = ({
                     </div>
                   </div>
 
-                  <p className="text-xs text-slate-300 leading-relaxed mb-5">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-5">
                     {authErrorInfo.message}
                   </p>
 
@@ -270,7 +241,7 @@ export const GoogleDriveUserMenu: React.FC<GoogleDriveUserMenuProps> = ({
                     <button
                       type="button"
                       onClick={() => setAuthErrorInfo(null)}
-                      className="px-3.5 py-2 text-xs font-semibold text-slate-400 hover:text-white bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                      className="px-3.5 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800 rounded-xl transition-colors cursor-pointer"
                     >
                       Fechar
                     </button>
@@ -278,7 +249,7 @@ export const GoogleDriveUserMenu: React.FC<GoogleDriveUserMenuProps> = ({
                       <button
                         type="button"
                         onClick={handleSignInRedirectClick}
-                        className="px-4 py-2 text-xs font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-xl transition-colors cursor-pointer"
+                        className="px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-colors cursor-pointer"
                       >
                         Tentar via Redirecionamento
                       </button>
@@ -300,96 +271,97 @@ export const GoogleDriveUserMenu: React.FC<GoogleDriveUserMenuProps> = ({
     );
   }
 
-  // Usuário Logado: Avatar + Status da Pasta Google Drive + Dropdown
+  // Usuário Logado: Alinhamento perfeito em esquadro (h-9, padding simétrico, avatar na esquerda, dados no centro, chevron na direita)
   return (
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 p-1.5 pl-2.5 bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 rounded-xl transition-all cursor-pointer group"
+        className="h-9 px-2.5 flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900/90 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-white transition-all shadow-xs cursor-pointer group shrink-0"
+        title="Conta conectada ao Google Drive - Clique para gerenciar"
       >
-        {/* Indicador de Nuvem / Sincronização */}
-        <div className="flex items-center gap-1.5 text-xs">
-          {isSyncing ? (
-            <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
-          ) : syncInfo ? (
-            <Cloud className="w-3.5 h-3.5 text-emerald-400" />
+        {/* 1. Avatar à esquerda com indicador de sincronização em esquadro */}
+        <div className="relative shrink-0 flex items-center justify-center">
+          {user.photoURL ? (
+            <img
+              src={user.photoURL}
+              alt={user.displayName || 'Avatar'}
+              className="w-6 h-6 rounded-full border border-slate-200 dark:border-slate-700 object-cover"
+            />
           ) : (
-            <Cloud className="w-3.5 h-3.5 text-slate-400" />
+            <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-[11px] font-bold">
+              {user.displayName?.slice(0, 1) || 'U'}
+            </div>
           )}
-
-          <div className="hidden md:flex flex-col text-left">
-            <span className="text-[11px] font-medium text-white truncate max-w-[120px]">
-              {user.displayName?.split(' ')[0] || 'Usuário'}
-            </span>
-            <span className="text-[9px] text-emerald-400 font-mono flex items-center gap-1">
-              {isSyncing ? (
-                'Sincronizando...'
-              ) : (
-                <>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>Auto-Sync 1 min</span>
-                </>
-              )}
-            </span>
-          </div>
+          {/* Indicador de status anexado ao avatar */}
+          <span
+            className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ring-white dark:ring-slate-900 ${
+              isSyncing ? 'bg-blue-500 animate-spin' : 'bg-emerald-500'
+            }`}
+          />
         </div>
 
-        {/* Foto de Perfil */}
-        {user.photoURL ? (
-          <img
-            src={user.photoURL}
-            alt={user.displayName || 'Avatar'}
-            className="w-7 h-7 rounded-lg border border-slate-700 object-cover"
-          />
-        ) : (
-          <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">
-            {user.displayName?.slice(0, 1) || 'U'}
-          </div>
-        )}
+        {/* 2. Informações de Usuário e Auto-Sync no centro */}
+        <div className="hidden sm:flex flex-col text-left leading-tight justify-center">
+          <span className="text-[11px] font-semibold text-slate-800 dark:text-slate-100 truncate max-w-[105px]">
+            {user.displayName?.split(' ')[0] || 'Usuário'}
+          </span>
+          <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-mono flex items-center gap-1">
+            {isSyncing ? (
+              <>
+                <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                <span>Sync...</span>
+              </>
+            ) : (
+              <span>Auto-Sync 1m</span>
+            )}
+          </span>
+        </div>
 
-        <ChevronDown className="w-3 h-3 text-slate-400 group-hover:text-white transition-transform" />
+        {/* 3. Chevron na direita */}
+        <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-transform shrink-0" />
       </button>
 
-      {/* Dropdown Menu */}
+      {/* Dropdown Menu com suporte completo a Modo Claro e Escuro */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-72 bg-[#111827] border border-slate-800 rounded-xl shadow-2xl overflow-hidden z-50 text-xs animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="absolute right-0 top-full mt-2 w-72 max-w-[calc(100vw-2rem)] bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl overflow-hidden z-50 text-xs animate-in fade-in slide-in-from-top-2 duration-150">
           {/* Identificação do Usuário */}
-          <div className="p-3 bg-slate-900/80 border-b border-slate-800">
-            <span className="text-[10px] uppercase font-bold text-slate-500 block">
+          <div className="p-3 bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800">
+            <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">
               Conta Conectada
             </span>
-            <span className="font-semibold text-white block truncate">
+            <span className="font-semibold text-slate-900 dark:text-white block truncate">
               {user.displayName || 'Colaborador'}
             </span>
-            <span className="text-[11px] text-slate-400 font-mono block truncate">
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono block truncate">
               {user.email}
             </span>
           </div>
 
           {/* Informações da Pasta no Drive & Status de Auto-Sync */}
-          <div className="p-3 border-b border-slate-800 bg-emerald-950/20 space-y-2">
+          <div className="p-3 border-b border-slate-200 dark:border-slate-800 bg-emerald-50/60 dark:bg-emerald-950/20 space-y-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+              <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-semibold">
                 <FolderOpen className="w-3.5 h-3.5" />
                 <span>Pasta: Assistente de Gastos</span>
               </div>
-              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-300 dark:border-emerald-500/30">
                 Auto-Sync 1 min
               </span>
             </div>
-            <p className="text-[10px] text-slate-300 leading-tight">
-              Sincronização em tempo real ativa a cada 1 minuto com o Google Drive. Suas alterações ficam disponíveis instantaneamente em todos os seus dispositivos.
+            <p className="text-[10px] text-slate-600 dark:text-slate-300 leading-tight">
+              Sincronização em nuvem ativa a cada 1 minuto com o Google Drive. Suas alterações ficam disponíveis instantaneamente em todos os seus aparelhos.
             </p>
-            <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+            <div className="flex items-center justify-between text-[10px] text-slate-600 dark:text-slate-400 font-mono bg-white dark:bg-slate-900/80 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span>Próximo ciclo:</span>
               </div>
-              <span className="text-emerald-400 font-bold">{secondsUntilSync ?? 60}s</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-bold">{secondsUntilSync ?? 60}s</span>
             </div>
             {lastSyncedTime && (
-              <div className="text-[9px] text-slate-400 text-right font-mono">
-                Última sincronização: {lastSyncedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              <div className="flex items-center justify-end gap-1 text-[9px] text-slate-500 dark:text-slate-400 font-mono">
+                <Clock className="w-2.5 h-2.5" />
+                <span>Última: {lastSyncedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
               </div>
             )}
           </div>
@@ -402,13 +374,13 @@ export const GoogleDriveUserMenu: React.FC<GoogleDriveUserMenuProps> = ({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setIsOpen(false)}
-                className="w-full px-3 py-2 text-slate-300 hover:text-white hover:bg-slate-800/80 rounded-lg flex items-center justify-between transition-colors"
+                className="w-full px-3 py-2 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 rounded-lg flex items-center justify-between transition-colors"
               >
                 <div className="flex items-center gap-2">
-                  <FolderOpen className="w-3.5 h-3.5 text-emerald-400" />
+                  <FolderOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                   <span>Abrir Pasta no Google Drive</span>
                 </div>
-                <ExternalLink className="w-3 h-3 text-slate-500" />
+                <ExternalLink className="w-3 h-3 text-slate-400" />
               </a>
             )}
 
@@ -418,9 +390,9 @@ export const GoogleDriveUserMenu: React.FC<GoogleDriveUserMenuProps> = ({
                 onManualSync();
               }}
               disabled={isSyncing}
-              className="w-full px-3 py-2 text-slate-300 hover:text-white hover:bg-slate-800/80 rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-left disabled:opacity-50"
+              className="w-full px-3 py-2 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-left disabled:opacity-50"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-blue-400 ${isSyncing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 text-blue-600 dark:text-blue-400 ${isSyncing ? 'animate-spin' : ''}`} />
               <span>Sincronizar com Drive Agora</span>
             </button>
 
@@ -429,23 +401,23 @@ export const GoogleDriveUserMenu: React.FC<GoogleDriveUserMenuProps> = ({
                 setIsOpen(false);
                 onOpenLeadsModal();
               }}
-              className="w-full px-3 py-2 text-slate-300 hover:text-white hover:bg-slate-800/80 rounded-lg flex items-center justify-between transition-colors cursor-pointer text-left"
+              className="w-full px-3 py-2 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 rounded-lg flex items-center justify-between transition-colors cursor-pointer text-left"
             >
               <div className="flex items-center gap-2">
-                <Users className="w-3.5 h-3.5 text-purple-400" />
+                <Users className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                 <span>Painel de Leads (Criador)</span>
               </div>
-              <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-semibold">
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-semibold">
                 Admin
               </span>
             </button>
           </div>
 
           {/* Sair */}
-          <div className="p-1 border-t border-slate-800">
+          <div className="p-1 border-t border-slate-200 dark:border-slate-800">
             <button
               onClick={handleSignOutClick}
-              className="w-full px-3 py-2 text-red-400 hover:text-red-300 hover:bg-red-950/30 rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-left"
+              className="w-full px-3 py-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg flex items-center gap-2 transition-colors cursor-pointer text-left"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>Desconectar Conta</span>
