@@ -1,4 +1,4 @@
-import { CorporateExpense, CompanySettings } from '../types/expense';
+import { CorporateExpense, CompanySettings, InvoiceStatement } from '../types/expense';
 
 const DB_NAME = 'AssistenteGastosCorporateDB';
 const DB_VERSION = 2;
@@ -277,3 +277,110 @@ export async function importDatabaseBackup(jsonString: string): Promise<number> 
   }
   throw new Error('Arquivo de backup inválido ou sem lista de despesas.');
 }
+
+// ==========================================
+// GESTÃO DO CICLO DE FATURAS CORPORATIVAS
+// ==========================================
+const INVOICES_KEY = 'assistente_gastos_invoices_v1';
+
+const MONTH_NAMES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+];
+
+export function formatMonthName(monthStr: string): string {
+  if (!monthStr || !monthStr.includes('-')) return monthStr;
+  const [year, month] = monthStr.split('-');
+  const idx = parseInt(month, 10) - 1;
+  const name = MONTH_NAMES[idx] || month;
+  return `${name}/${year}`;
+}
+
+export function getStoredInvoices(): InvoiceStatement[] {
+  try {
+    const raw = localStorage.getItem(INVOICES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    console.error('Erro ao ler faturas:', e);
+    return [];
+  }
+}
+
+export function saveStoredInvoices(invoices: InvoiceStatement[]): void {
+  try {
+    localStorage.setItem(INVOICES_KEY, JSON.stringify(invoices));
+  } catch (e) {
+    console.error('Erro ao salvar faturas:', e);
+  }
+}
+
+export function getInvoiceForMonth(month: string): InvoiceStatement | null {
+  const invoices = getStoredInvoices();
+  return invoices.find((inv) => inv.month === month) || null;
+}
+
+export function closeInvoice(
+  month: string,
+  expenses: CorporateExpense[],
+  notes?: string,
+  closedBy?: string
+): InvoiceStatement {
+  const invoices = getStoredInvoices();
+  const existingIdx = invoices.findIndex((inv) => inv.month === month);
+
+  const monthExpenses = expenses.filter((e) => e.date && e.date.startsWith(month));
+  const totalAmount = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+  const invoiceData: InvoiceStatement = {
+    id: existingIdx >= 0 ? invoices[existingIdx].id : `fatura_${month}`,
+    month,
+    title: `Fatura ${formatMonthName(month)}`,
+    status: 'fechada',
+    closedAt: new Date().toISOString(),
+    closedBy: closedBy || 'Hugo Baltazar',
+    notes: notes || '',
+    totalAmount,
+    expensesCount: monthExpenses.length,
+    createdAt: existingIdx >= 0 ? invoices[existingIdx].createdAt : new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (existingIdx >= 0) {
+    invoices[existingIdx] = invoiceData;
+  } else {
+    invoices.unshift(invoiceData);
+  }
+
+  saveStoredInvoices(invoices);
+  return invoiceData;
+}
+
+export function reopenInvoice(month: string): InvoiceStatement {
+  const invoices = getStoredInvoices();
+  const existingIdx = invoices.findIndex((inv) => inv.month === month);
+
+  if (existingIdx >= 0) {
+    invoices[existingIdx] = {
+      ...invoices[existingIdx],
+      status: 'aberta',
+      updatedAt: new Date().toISOString(),
+    };
+    saveStoredInvoices(invoices);
+    return invoices[existingIdx];
+  }
+
+  const newOpenInvoice: InvoiceStatement = {
+    id: `fatura_${month}`,
+    month,
+    title: `Fatura ${formatMonthName(month)}`,
+    status: 'aberta',
+    totalAmount: 0,
+    expensesCount: 0,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  invoices.unshift(newOpenInvoice);
+  saveStoredInvoices(invoices);
+  return newOpenInvoice;
+}
+

@@ -8,8 +8,11 @@ import {
   Eye,
   Plus,
   FileSpreadsheet,
+  Lock,
+  Unlock,
+  Archive,
 } from 'lucide-react';
-import { CorporateExpense } from '../types/expense';
+import { CorporateExpense, InvoiceStatement } from '../types/expense';
 
 interface DashboardViewProps {
   expenses: CorporateExpense[];
@@ -17,6 +20,10 @@ interface DashboardViewProps {
   onOpenScanner: () => void;
   onSelectTab: (tab: 'dashboard' | 'table' | 'report' | 'settings') => void;
   onViewExpense: (expense: CorporateExpense) => void;
+  invoiceStatus: InvoiceStatement | null;
+  onRequestCloseInvoice: () => void;
+  onReopenInvoice: () => void;
+  onOpenInvoicesHistory: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -25,6 +32,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenScanner,
   onSelectTab,
   onViewExpense,
+  invoiceStatus,
+  onRequestCloseInvoice,
+  onReopenInvoice,
+  onOpenInvoicesHistory,
 }) => {
   // Filtra as despesas pelo mês selecionado
   const monthExpenses = expenses.filter((e) => e.date.startsWith(selectedMonth));
@@ -98,6 +109,89 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>Escanear Comprovante</span>
           </button>
+        </div>
+      </div>
+
+      {/* Card de Gestão do Ciclo de Fatura (Aberta / Fechada) */}
+      <div
+        className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
+          invoiceStatus?.status === 'fechada'
+            ? 'bg-amber-950/20 border-amber-500/30'
+            : 'bg-slate-900/80 border-slate-800'
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          <div
+            className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+              invoiceStatus?.status === 'fechada'
+                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+            }`}
+          >
+            {invoiceStatus?.status === 'fechada' ? (
+              <Lock className="w-4 h-4" />
+            ) : (
+              <Unlock className="w-4 h-4" />
+            )}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-white text-xs sm:text-sm">
+                Fatura de {formatMonthName(selectedMonth)}
+              </span>
+              {invoiceStatus?.status === 'fechada' ? (
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[10px] font-bold flex items-center gap-1">
+                  <Lock className="w-2.5 h-2.5" />
+                  <span>
+                    Fechada{' '}
+                    {invoiceStatus.closedAt &&
+                      `em ${new Date(invoiceStatus.closedAt).toLocaleDateString('pt-BR')}`}
+                  </span>
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Aberta · Lançamentos em Andamento</span>
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-400 mt-0.5 leading-tight">
+              {invoiceStatus?.status === 'fechada'
+                ? 'Esta fatura foi encerrada. Seus relatórios contábeis estão consolidados. Deseja fazer alterações? Reabra para edição.'
+                : 'Quando finalizar a inclusão de todos os comprovantes deste mês, clique em "Fechar Fatura" para encerrar a prestação de contas.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={onOpenInvoicesHistory}
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Ver todas as faturas anteriores"
+          >
+            <Archive className="w-3.5 h-3.5 text-slate-400" />
+            <span>Histórico de Faturas</span>
+          </button>
+
+          {invoiceStatus?.status === 'fechada' ? (
+            <button
+              onClick={onReopenInvoice}
+              className="px-3.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Permite incluir ou alterar notas desta fatura"
+            >
+              <Unlock className="w-3.5 h-3.5" />
+              <span>Reabrir para Edição</span>
+            </button>
+          ) : (
+            <button
+              onClick={onRequestCloseInvoice}
+              className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+              title="Concluir lançamentos desta fatura"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>Fechar Fatura</span>
+            </button>
+          )}
         </div>
       </div>
 

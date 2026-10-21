@@ -29,6 +29,7 @@ export interface CorporateExpense {
   receipt?: ReceiptFile;
   status: 'conferido' | 'pendente';
   createdAt: string;
+  invoiceId?: string; // Vincula a despesa ao ciclo da fatura
 }
 
 export interface CompanySettings {
@@ -40,6 +41,22 @@ export interface CompanySettings {
   approverName: string;
   currency: string;
   geminiApiKey?: string;
+  invoiceClosingDay?: number; // Dia do mês em que a fatura fecha (ex: 15, 20, 25)
+}
+
+export interface InvoiceStatement {
+  id: string; // e.g. "fatura_2026-10"
+  month: string; // YYYY-MM
+  title: string; // "Fatura Outubro/2026"
+  status: 'aberta' | 'fechada';
+  closingDay?: number;
+  closedAt?: string; // Data ISO em que foi encerrada
+  closedBy?: string;
+  notes?: string;
+  totalAmount: number;
+  expensesCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ScannedReceiptData {

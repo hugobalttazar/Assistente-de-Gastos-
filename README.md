@@ -151,3 +151,5 @@ Como a aplicação utiliza caminhos relativos e banco de dados IndexedDB no nave
 ## 📄 Licença
 
 Distribuído sob a licença Apache 2.0.
+
+https://hugobalttazar.github.io/Assistente-de-Gastos-/

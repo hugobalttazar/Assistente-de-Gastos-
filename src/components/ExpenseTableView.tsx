@@ -12,8 +12,12 @@ import {
   Clock,
   Check,
   X,
+  Lock,
+  Unlock,
+  Archive,
 } from 'lucide-react';
-import { CorporateExpense, ExpenseCategory } from '../types/expense';
+import { CorporateExpense, ExpenseCategory, InvoiceStatement } from '../types/expense';
+import { formatMonthName } from '../utils/storage';
 
 interface ExpenseTableViewProps {
   expenses: CorporateExpense[];
@@ -22,6 +26,10 @@ interface ExpenseTableViewProps {
   onViewExpense: (expense: CorporateExpense) => void;
   onUpdateExpense: (expense: CorporateExpense) => void;
   onDeleteExpense: (id: string) => void;
+  invoiceStatus: InvoiceStatement | null;
+  onRequestCloseInvoice: () => void;
+  onReopenInvoice: () => void;
+  onOpenInvoicesHistory: () => void;
 }
 
 export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
@@ -31,6 +39,10 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
   onViewExpense,
   onUpdateExpense,
   onDeleteExpense,
+  invoiceStatus,
+  onRequestCloseInvoice,
+  onReopenInvoice,
+  onOpenInvoicesHistory,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -169,36 +181,47 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
       </div>
 
       {/* Tabela de Despesas - Estilo Mesa de Conferência */}
-      <div className="bg-[#111827] border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+      <div className="bg-[#111827] border border-slate-800 rounded-xl overflow-hidden shadow-xl w-full">
         <div className="w-full overflow-hidden">
           <table className="w-full text-left border-collapse table-fixed">
+            <colgroup>
+              <col style={{ width: '42px' }} />
+              <col style={{ width: '48px' }} />
+              <col style={{ width: '84px' }} />
+              <col style={{ width: '22%' }} />
+              <col style={{ width: '15%' }} />
+              <col />
+              <col style={{ width: '104px' }} />
+              <col style={{ width: '92px' }} />
+              <col style={{ width: '76px' }} />
+            </colgroup>
             <thead>
               <tr className="bg-slate-900/90 border-b border-slate-800 text-[11px] font-semibold text-slate-400">
-                <th className="py-3 px-2 w-[44px] text-center">Item</th>
-                <th className="py-3 px-2 w-[52px] text-center">Anexo</th>
+                <th className="py-3 px-2 text-center">Item</th>
+                <th className="py-3 px-2 text-center">Anexo</th>
                 <th
                   onClick={() => toggleSort('date')}
-                  className="py-3 px-2 w-[88px] cursor-pointer hover:text-white transition-colors select-none"
+                  className="py-3 px-2 cursor-pointer hover:text-white transition-colors select-none"
                 >
                   <div className="flex items-center gap-1">
                     <span>Data</span>
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
-                <th className="py-3 px-3 w-[22%]">Estabelecimento / Fornecedor</th>
-                <th className="py-3 px-2 w-[14%]">Categoria</th>
+                <th className="py-3 px-3">Estabelecimento / Fornecedor</th>
+                <th className="py-3 px-2">Categoria</th>
                 <th className="py-3 px-3">Descrição / Justificativa</th>
                 <th
                   onClick={() => toggleSort('amount')}
-                  className="py-3 px-3 w-[100px] text-right cursor-pointer hover:text-white transition-colors select-none"
+                  className="py-3 px-3 text-right cursor-pointer hover:text-white transition-colors select-none"
                 >
                   <div className="flex items-center justify-end gap-1">
                     <span>Valor (R$)</span>
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
-                <th className="py-3 px-2 w-[92px] text-center">Status</th>
-                <th className="py-3 px-3 w-[76px] text-right">Ações</th>
+                <th className="py-3 px-2 text-center">Status</th>
+                <th className="py-3 px-2 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80 text-xs">
@@ -239,16 +262,16 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
                       className="hover:bg-slate-800/40 transition-colors group"
                     >
                       {/* Índice */}
-                      <td className="py-3 px-4 text-center font-mono text-[11px] text-slate-500">
+                      <td className="py-3 px-2 text-center font-mono text-[11px] text-slate-500">
                         {String(index + 1).padStart(2, '0')}
                       </td>
 
                       {/* Miniatura do Anexo */}
-                      <td className="py-2 px-3 text-center">
+                      <td className="py-2 px-2 text-center">
                         {exp.receipt ? (
                           <button
                             onClick={() => onViewExpense(exp)}
-                            className="w-9 h-9 rounded-md bg-slate-900 border border-slate-700 hover:border-emerald-500 overflow-hidden inline-flex items-center justify-center cursor-pointer transition-all hover:scale-105"
+                            className="w-8 h-8 rounded-md bg-slate-900 border border-slate-700 hover:border-emerald-500 overflow-hidden inline-flex items-center justify-center cursor-pointer transition-all hover:scale-105"
                             title="Ver comprovante original ampliado"
                           >
                             <img
@@ -268,12 +291,12 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
                       </td>
 
                       {/* Data */}
-                      <td className="py-3 px-3 font-mono text-slate-300 whitespace-nowrap">
+                      <td className="py-3 px-2 font-mono text-slate-300 whitespace-nowrap text-xs">
                         {exp.date.split('-').reverse().join('/')}
                       </td>
 
                       {/* Fornecedor */}
-                      <td className="py-3 px-3 overflow-hidden">
+                      <td className="py-3 px-3 overflow-hidden min-w-0">
                         <div className="font-semibold text-white truncate" title={exp.merchant}>
                           {exp.merchant}
                         </div>
@@ -285,21 +308,21 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
                       </td>
 
                       {/* Categoria */}
-                      <td className="py-3 px-2 overflow-hidden">
+                      <td className="py-3 px-2 overflow-hidden min-w-0">
                         <span className="text-slate-300 font-medium text-[11px] truncate block" title={exp.category}>
                           {exp.category}
                         </span>
                       </td>
 
-                      {/* Descrição / Justificativa (com edição rápida) */}
-                      <td className="py-3 px-3 overflow-hidden">
+                      {/* Descrição / Justificativa (com limite visual + tooltip completo) */}
+                      <td className="py-3 px-3 overflow-hidden min-w-0">
                         {isEditing ? (
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
                             <input
                               type="text"
                               value={editDescription}
                               onChange={(e) => setEditDescription(e.target.value)}
-                              className="w-full bg-slate-900 border border-emerald-500 rounded px-2 py-1 text-xs text-white focus:outline-none"
+                              className="w-full min-w-0 bg-slate-900 border border-emerald-500 rounded px-2 py-1 text-xs text-white focus:outline-none"
                               autoFocus
                             />
                             <button
@@ -320,12 +343,12 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
                         ) : (
                           <div
                             onClick={() => handleStartEdit(exp)}
-                            className="text-slate-300 hover:text-white cursor-pointer group/desc flex items-center justify-between gap-1.5 overflow-hidden"
-                            title={`Justificativa: ${exp.description}\n(Clique para editar)`}
+                            className="text-slate-300 hover:text-white cursor-pointer group/desc flex items-center justify-between gap-1.5 overflow-hidden min-w-0"
+                            title={`Justificativa:\n${exp.description}\n\n(Clique para editar)`}
                           >
-                            <span className="truncate block font-normal">
-                              {exp.description.length > 46
-                                ? `${exp.description.slice(0, 46)}...`
+                            <span className="truncate block font-normal text-xs min-w-0">
+                              {exp.description.length > 40
+                                ? `${exp.description.slice(0, 40)}...`
                                 : exp.description}
                             </span>
                             <Edit3 className="w-3 h-3 text-slate-600 group-hover/desc:text-slate-400 shrink-0 opacity-0 group-hover/desc:opacity-100 transition-opacity" />
@@ -334,14 +357,14 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
                       </td>
 
                       {/* Valor R$ */}
-                      <td className="py-3 px-4 text-right font-mono font-bold text-white tabular-nums whitespace-nowrap">
+                      <td className="py-3 px-3 text-right font-mono font-bold text-white tabular-nums whitespace-nowrap text-xs">
                         {isEditing ? (
                           <input
                             type="number"
                             step="0.01"
                             value={editAmount}
                             onChange={(e) => setEditAmount(e.target.value)}
-                            className="w-24 text-right bg-slate-900 border border-emerald-500 rounded px-2 py-1 text-xs text-emerald-400 focus:outline-none"
+                            className="w-20 text-right bg-slate-900 border border-emerald-500 rounded px-2 py-1 text-xs text-emerald-400 focus:outline-none"
                           />
                         ) : (
                           <span>R$ {exp.amount.toFixed(2).replace('.', ',')}</span>
@@ -349,7 +372,7 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
                       </td>
 
                       {/* Status */}
-                      <td className="py-3 px-3 text-center whitespace-nowrap">
+                      <td className="py-3 px-2 text-center whitespace-nowrap">
                         <button
                           onClick={() => toggleStatus(exp)}
                           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
@@ -374,12 +397,12 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
                       </td>
 
                       {/* Ações */}
-                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                      <td className="py-3 px-2 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
                           {exp.receipt && (
                             <button
                               onClick={() => onViewExpense(exp)}
-                              className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                              className="p-1 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded transition-colors cursor-pointer"
                               title="Visualizar Comprovante"
                             >
                               <Eye className="w-4 h-4" />
@@ -387,14 +410,14 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
                           )}
                           <button
                             onClick={() => handleStartEdit(exp)}
-                            className="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                            className="p-1 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded transition-colors cursor-pointer"
                             title="Editar Dados"
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => setExpenseToDelete(exp)}
-                            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                            className="p-1 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded transition-colors cursor-pointer"
                             title="Excluir Despesa"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -409,10 +432,10 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
             {sortedExpenses.length > 0 && (
               <tfoot>
                 <tr className="bg-slate-900/90 border-t border-slate-700 font-semibold text-xs">
-                  <td colSpan={6} className="py-3 px-4 text-slate-300">
+                  <td colSpan={6} className="py-3 px-3 text-slate-300">
                     Total deste fechamento ({sortedExpenses.length} itens)
                   </td>
-                  <td className="py-3 px-4 text-right font-mono text-emerald-400 text-sm font-bold tabular-nums">
+                  <td className="py-3 px-3 text-right font-mono text-emerald-400 text-sm font-bold tabular-nums">
                     R$ {totalFiltered.toFixed(2).replace('.', ',')}
                   </td>
                   <td colSpan={2}></td>

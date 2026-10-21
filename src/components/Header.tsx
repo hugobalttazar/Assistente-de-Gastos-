@@ -1,9 +1,10 @@
 import React from 'react';
-import { Plus, CreditCard, Calendar } from 'lucide-react';
+import { Plus, CreditCard, Calendar, Lock, Unlock, Archive } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { PWAInstallButton } from './PWAInstallButton';
 import { GoogleDriveUserMenu } from './GoogleDriveUserMenu';
 import { DriveSyncInfo } from '../services/googleDriveStorage';
+import { InvoiceStatement } from '../types/expense';
 
 interface HeaderProps {
   currentTab: 'dashboard' | 'table' | 'report' | 'settings';
@@ -18,6 +19,10 @@ interface HeaderProps {
   onLogout: () => void;
   onManualSync: () => void;
   onOpenLeadsModal: () => void;
+  invoiceStatus: InvoiceStatement | null;
+  onOpenInvoicesHistory: () => void;
+  onRequestCloseInvoice: () => void;
+  onReopenInvoice: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -33,6 +38,10 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout,
   onManualSync,
   onOpenLeadsModal,
+  invoiceStatus,
+  onOpenInvoicesHistory,
+  onRequestCloseInvoice,
+  onReopenInvoice,
 }) => {
   return (
     <header className="border-b border-slate-800 bg-[#0B0F17]/90 backdrop-blur-md sticky top-0 z-40">
@@ -95,12 +104,42 @@ export const Header: React.FC<HeaderProps> = ({
             >
               Configurações & Backup
             </button>
+            <button
+              onClick={onOpenInvoicesHistory}
+              className="px-3 py-1.5 rounded-md text-slate-300 hover:text-white hover:bg-slate-800/50 transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer"
+              title="Consultar histórico de faturas fechadas e abertas"
+            >
+              <Archive className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Faturas</span>
+            </button>
           </nav>
 
-          {/* Zona 3: Ação Primária & Seletor de Competência */}
-          <div className="flex items-center gap-3 shrink-0">
+          {/* Zona 3: Ação Primária & Seletor de Competência & Status de Fatura */}
+          <div className="flex items-center gap-2.5 shrink-0">
             <PWAInstallButton />
-            <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300">
+
+            {/* Status & Ação Rápida de Fechamento da Fatura do Mês */}
+            {invoiceStatus?.status === 'fechada' ? (
+              <button
+                onClick={onOpenInvoicesHistory}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-colors cursor-pointer"
+                title="Fatura deste mês está Fechada. Clique para gerenciar ou reabrir."
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span className="hidden xl:inline">Fatura Fechada</span>
+              </button>
+            ) : (
+              <button
+                onClick={onRequestCloseInvoice}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-amber-500/40 text-slate-300 hover:text-amber-400 text-xs font-medium transition-colors cursor-pointer"
+                title="Concluiu os lançamentos deste mês? Clique para fechar a fatura."
+              >
+                <Unlock className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden xl:inline">Fechar Fatura</span>
+              </button>
+            )}
+
+            <div className="hidden sm:flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300">
               <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <input
                 type="month"
@@ -113,7 +152,13 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={onOpenScanner}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 active:scale-95 transition-all rounded-lg shadow-sm whitespace-nowrap shrink-0 cursor-pointer"
+              disabled={invoiceStatus?.status === 'fechada'}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 active:scale-95 transition-all rounded-lg shadow-sm whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title={
+                invoiceStatus?.status === 'fechada'
+                  ? 'Fatura fechada. Reabra a fatura para adicionar novos comprovantes.'
+                  : 'Escanear novo comprovante'
+              }
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span className="hidden sm:inline">Escanear Comprovante</span>
@@ -166,6 +211,12 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             Ajustes
+          </button>
+          <button
+            onClick={onOpenInvoicesHistory}
+            className="px-2 py-1 rounded text-slate-400 hover:text-white"
+          >
+            Faturas
           </button>
         </div>
       </div>

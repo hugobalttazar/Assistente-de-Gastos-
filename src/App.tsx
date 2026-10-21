@@ -9,12 +9,19 @@ import { ReceiptScannerModal } from './components/ReceiptScannerModal';
 import { ReceiptViewerModal } from './components/ReceiptViewerModal';
 import { LeadRegistrationModal } from './components/LeadRegistrationModal';
 import { AdminLeadsModal } from './components/AdminLeadsModal';
-import { CorporateExpense, CompanySettings } from './types/expense';
+import { CloseInvoiceModal } from './components/CloseInvoiceModal';
+import { InvoicesHistoryModal } from './components/InvoicesHistoryModal';
+import { CorporateExpense, CompanySettings, InvoiceStatement } from './types/expense';
 import {
   getStoredExpenses,
   saveStoredExpense,
   deleteStoredExpense,
   getCompanySettings,
+  getStoredInvoices,
+  getInvoiceForMonth,
+  closeInvoice,
+  reopenInvoice,
+  formatMonthName,
 } from './utils/storage';
 import { initAuth, getAccessToken } from './services/googleAuth';
 import {
@@ -54,6 +61,33 @@ export default function App() {
   const [viewingExpense, setViewingExpense] = useState<CorporateExpense | null>(null);
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [isAdminLeadsModalOpen, setIsAdminLeadsModalOpen] = useState(false);
+
+  // Estados de Gestão de Faturas Corporativas
+  const [invoices, setInvoices] = useState<InvoiceStatement[]>(() => getStoredInvoices());
+  const [isCloseInvoiceModalOpen, setIsCloseInvoiceModalOpen] = useState(false);
+  const [isInvoicesHistoryModalOpen, setIsInvoicesHistoryModalOpen] = useState(false);
+  const [targetMonthForClosing, setTargetMonthForClosing] = useState<string>(selectedMonth);
+
+  const currentInvoice = invoices.find((inv) => inv.month === selectedMonth) || null;
+
+  const handleRequestCloseInvoice = (month?: string) => {
+    setTargetMonthForClosing(month || selectedMonth);
+    setIsCloseInvoiceModalOpen(true);
+  };
+
+  const handleConfirmCloseInvoice = (notes: string) => {
+    closeInvoice(targetMonthForClosing, expenses, notes, user?.displayName || settings.employeeName);
+    setInvoices(getStoredInvoices());
+    setIsCloseInvoiceModalOpen(false);
+    flashNotification(`Fatura de ${formatMonthName(targetMonthForClosing)} fechada com sucesso!`);
+  };
+
+  const handleReopenInvoice = (month?: string) => {
+    const m = month || selectedMonth;
+    reopenInvoice(m);
+    setInvoices(getStoredInvoices());
+    flashNotification(`Fatura de ${formatMonthName(m)} reaberta para edição.`);
+  };
 
   // Carrega despesas locais ao montar
   useEffect(() => {
@@ -288,6 +322,10 @@ export default function App() {
         onLogout={handleLogout}
         onManualSync={handleManualSync}
         onOpenLeadsModal={() => setIsAdminLeadsModalOpen(true)}
+        invoiceStatus={currentInvoice}
+        onOpenInvoicesHistory={() => setIsInvoicesHistoryModalOpen(true)}
+        onRequestCloseInvoice={() => handleRequestCloseInvoice()}
+        onReopenInvoice={() => handleReopenInvoice()}
       />
 
       {/* Conteúdo Principal */}
@@ -306,6 +344,10 @@ export default function App() {
                 onOpenScanner={() => setIsScannerOpen(true)}
                 onSelectTab={setCurrentTab}
                 onViewExpense={(exp) => setViewingExpense(exp)}
+                invoiceStatus={currentInvoice}
+                onRequestCloseInvoice={() => handleRequestCloseInvoice()}
+                onReopenInvoice={() => handleReopenInvoice()}
+                onOpenInvoicesHistory={() => setIsInvoicesHistoryModalOpen(true)}
               />
             )}
 
@@ -317,6 +359,10 @@ export default function App() {
                 onViewExpense={(exp) => setViewingExpense(exp)}
                 onUpdateExpense={handleUpdateExpense}
                 onDeleteExpense={handleDeleteExpense}
+                invoiceStatus={currentInvoice}
+                onRequestCloseInvoice={() => handleRequestCloseInvoice()}
+                onReopenInvoice={() => handleReopenInvoice()}
+                onOpenInvoicesHistory={() => setIsInvoicesHistoryModalOpen(true)}
               />
             )}
 
@@ -363,6 +409,28 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* Modal de Fechamento de Fatura */}
+      <CloseInvoiceModal
+        isOpen={isCloseInvoiceModalOpen}
+        month={targetMonthForClosing}
+        expenses={expenses}
+        onConfirmClose={handleConfirmCloseInvoice}
+        onClose={() => setIsCloseInvoiceModalOpen(false)}
+      />
+
+      {/* Modal de Histórico e Gestão de Faturas */}
+      <InvoicesHistoryModal
+        isOpen={isInvoicesHistoryModalOpen}
+        invoices={invoices}
+        expenses={expenses}
+        settings={settings}
+        currentSelectedMonth={selectedMonth}
+        onSelectMonth={(month) => setSelectedMonth(month)}
+        onReopenInvoice={handleReopenInvoice}
+        onRequestCloseInvoice={(month) => handleRequestCloseInvoice(month)}
+        onClose={() => setIsInvoicesHistoryModalOpen(false)}
+      />
 
       {/* Modal de Digitalização & Extração com Gemini */}
       <ReceiptScannerModal
