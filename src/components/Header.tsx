@@ -15,6 +15,8 @@ interface HeaderProps {
   user: User | null;
   syncInfo: DriveSyncInfo | null;
   isSyncing: boolean;
+  lastSyncedTime?: Date | null;
+  secondsUntilSync?: number;
   onLoginSuccess: (user: User, accessToken: string) => void;
   onLogout: () => void;
   onManualSync: () => void;
@@ -34,6 +36,8 @@ export const Header: React.FC<HeaderProps> = ({
   user,
   syncInfo,
   isSyncing,
+  lastSyncedTime,
+  secondsUntilSync,
   onLoginSuccess,
   onLogout,
   onManualSync,
@@ -170,6 +174,8 @@ export const Header: React.FC<HeaderProps> = ({
               user={user}
               syncInfo={syncInfo}
               isSyncing={isSyncing}
+              lastSyncedTime={lastSyncedTime}
+              secondsUntilSync={secondsUntilSync}
               onLoginSuccess={onLoginSuccess}
               onLogout={onLogout}
               onManualSync={onManualSync}

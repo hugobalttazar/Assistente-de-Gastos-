@@ -29,6 +29,7 @@ export interface CorporateExpense {
   receipt?: ReceiptFile;
   status: 'conferido' | 'pendente';
   createdAt: string;
+  updatedAt?: string;
   invoiceId?: string; // Vincula a despesa ao ciclo da fatura
 }
 

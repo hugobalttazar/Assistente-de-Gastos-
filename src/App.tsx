@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User } from 'firebase/auth';
 import { Header } from './components/Header';
 import { DashboardView } from './components/DashboardView';
@@ -15,9 +15,12 @@ import { CorporateExpense, CompanySettings, InvoiceStatement } from './types/exp
 import {
   getStoredExpenses,
   saveStoredExpense,
+  saveAllExpenses,
   deleteStoredExpense,
   getCompanySettings,
+  saveCompanySettings,
   getStoredInvoices,
+  saveStoredInvoices,
   getInvoiceForMonth,
   closeInvoice,
   reopenInvoice,
@@ -28,8 +31,9 @@ import {
   DriveSyncInfo,
   loadExpensesFromDrive,
   saveExpensesToDrive,
+  syncExpensesWithDrive,
 } from './services/googleDriveStorage';
-import { getLocalLeadProfile, LeadRegistration } from './services/leadsService';
+import { getLocalLeadProfile, fetchAllLeads, LeadRegistration } from './services/leadsService';
 import { exchangeCodeForApiKey } from './services/openRouterService';
 
 export default function App() {
@@ -46,7 +50,17 @@ export default function App() {
   });
 
   const [expenses, setExpenses] = useState<CorporateExpense[]>([]);
+  const expensesRef = useRef<CorporateExpense[]>(expenses);
+  useEffect(() => {
+    expensesRef.current = expenses;
+  }, [expenses]);
+
   const [settings, setSettings] = useState<CompanySettings>(getCompanySettings());
+  const settingsRef = useRef<CompanySettings>(settings);
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
   const [isLoading, setIsLoading] = useState(true);
 
   // Estados de Usuário e Google Drive
@@ -54,7 +68,10 @@ export default function App() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [syncInfo, setSyncInfo] = useState<DriveSyncInfo | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const isSyncingRef = useRef(false);
   const [syncNotification, setSyncNotification] = useState<string | null>(null);
+  const [lastSyncedTime, setLastSyncedTime] = useState<Date | null>(null);
+  const [secondsUntilSync, setSecondsUntilSync] = useState<number>(60);
 
   // Modais
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -64,11 +81,42 @@ export default function App() {
 
   // Estados de Gestão de Faturas Corporativas
   const [invoices, setInvoices] = useState<InvoiceStatement[]>(() => getStoredInvoices());
+  const invoicesRef = useRef<InvoiceStatement[]>(invoices);
+  useEffect(() => {
+    invoicesRef.current = invoices;
+  }, [invoices]);
+
   const [isCloseInvoiceModalOpen, setIsCloseInvoiceModalOpen] = useState(false);
   const [isInvoicesHistoryModalOpen, setIsInvoicesHistoryModalOpen] = useState(false);
   const [targetMonthForClosing, setTargetMonthForClosing] = useState<string>(selectedMonth);
 
   const currentInvoice = invoices.find((inv) => inv.month === selectedMonth) || null;
+
+  // Notificação temporária de sincronização
+  const flashNotification = useCallback((msg: string) => {
+    setSyncNotification(msg);
+    setTimeout(() => {
+      setSyncNotification(null);
+    }, 4000);
+  }, []);
+
+  // Envio imediato das alterações para o Google Drive
+  const triggerDriveSync = async (
+    targetExpenses: CorporateExpense[],
+    targetInvoices: InvoiceStatement[],
+    targetSettings: CompanySettings
+  ) => {
+    const token = accessToken || (await getAccessToken());
+    if (token) {
+      try {
+        const info = await saveExpensesToDrive(token, targetExpenses, targetInvoices, targetSettings);
+        setSyncInfo(info);
+        setLastSyncedTime(new Date());
+      } catch (e: any) {
+        console.warn('Erro ao sincronizar dados com o Google Drive:', e);
+      }
+    }
+  };
 
   const handleRequestCloseInvoice = (month?: string) => {
     setTargetMonthForClosing(month || selectedMonth);
@@ -76,17 +124,30 @@ export default function App() {
   };
 
   const handleConfirmCloseInvoice = (notes: string) => {
-    closeInvoice(targetMonthForClosing, expenses, notes, user?.displayName || settings.employeeName);
-    setInvoices(getStoredInvoices());
+    closeInvoice(targetMonthForClosing, expensesRef.current, notes, user?.displayName || settingsRef.current.employeeName);
+    const updatedInvoices = getStoredInvoices();
+    setInvoices(updatedInvoices);
+    invoicesRef.current = updatedInvoices;
     setIsCloseInvoiceModalOpen(false);
     flashNotification(`Fatura de ${formatMonthName(targetMonthForClosing)} fechada com sucesso!`);
+    triggerDriveSync(expensesRef.current, updatedInvoices, settingsRef.current);
   };
 
   const handleReopenInvoice = (month?: string) => {
     const m = month || selectedMonth;
     reopenInvoice(m);
-    setInvoices(getStoredInvoices());
+    const updatedInvoices = getStoredInvoices();
+    setInvoices(updatedInvoices);
+    invoicesRef.current = updatedInvoices;
     flashNotification(`Fatura de ${formatMonthName(m)} reaberta para edição.`);
+    triggerDriveSync(expensesRef.current, updatedInvoices, settingsRef.current);
+  };
+
+  const handleUpdateSettings = (newSettings: CompanySettings) => {
+    setSettings(newSettings);
+    settingsRef.current = newSettings;
+    saveCompanySettings(newSettings);
+    triggerDriveSync(expensesRef.current, invoicesRef.current, newSettings);
   };
 
   // Carrega despesas locais ao montar
@@ -99,8 +160,10 @@ export default function App() {
       setIsLoading(true);
       const data = await getStoredExpenses();
       setExpenses(data);
+      expensesRef.current = data;
       const savedSettings = getCompanySettings();
       setSettings(savedSettings);
+      settingsRef.current = savedSettings;
     } catch (err) {
       console.error('Erro ao carregar dados locais:', err);
     } finally {
@@ -136,16 +199,69 @@ export default function App() {
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [flashNotification]);
+
+  // Sincroniza dados com a pasta 'Assistente de Gastos' do Google Drive
+  const syncFromDrive = useCallback(async (token: string, isSilent = false) => {
+    if (isSyncingRef.current) return;
+    isSyncingRef.current = true;
+    setIsSyncing(true);
+
+    try {
+      const result = await syncExpensesWithDrive(
+        token,
+        expensesRef.current,
+        invoicesRef.current,
+        settingsRef.current
+      );
+      setSyncInfo(result.syncInfo);
+      setLastSyncedTime(new Date());
+
+      if (result.updatedLocal) {
+        if (result.expenses) {
+          setExpenses(result.expenses);
+          expensesRef.current = result.expenses;
+          await saveAllExpenses(result.expenses);
+        }
+        if (result.invoices) {
+          setInvoices(result.invoices);
+          invoicesRef.current = result.invoices;
+          saveStoredInvoices(result.invoices);
+        }
+        if (result.settings) {
+          setSettings(result.settings);
+          settingsRef.current = result.settings;
+          saveCompanySettings(result.settings);
+        }
+      }
+
+      if (!isSilent) {
+        flashNotification('Sincronizado com a nuvem do Google Drive!');
+      }
+    } catch (err: any) {
+      console.warn('Falha na sincronização com Google Drive:', err);
+      if (err?.code === 'AUTH_EXPIRED') {
+        setAccessToken(null);
+        if (!isSilent) {
+          flashNotification('Sessão do Google Drive expirada. Clique em Realizar Login para reconectar.');
+        }
+      }
+    } finally {
+      isSyncingRef.current = false;
+      setIsSyncing(false);
+      setSecondsUntilSync(60);
+    }
+  }, [flashNotification]);
 
   // Inicializa a autenticação Google e sincronização com Google Drive
   useEffect(() => {
     const unsubscribe = initAuth(
       async (authUser, token) => {
         setUser(authUser);
-        if (token) {
-          setAccessToken(token);
-          checkLeadAndSync(authUser, token);
+        const currentToken = token || (await getAccessToken());
+        if (currentToken) {
+          setAccessToken(currentToken);
+          checkLeadAndSync(authUser, currentToken);
         }
       },
       () => {
@@ -158,53 +274,81 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Verifica se o lead já completou o cadastro e termo de consentimento
+  // Verifica o lead SEM bloquear a sincronização imediata
   const checkLeadAndSync = async (authUser: User, token: string) => {
+    // 1. SEMPRE sincroniza o Drive primeiro para carregar imediatamente as modificações feitas em outros aparelhos
+    await syncFromDrive(token, false);
+
+    // 2. Verifica se o usuário já possui cadastro
     const lead = getLocalLeadProfile();
     if (!lead || !lead.phone || !lead.consentAccepted) {
-      setIsLeadModalOpen(true);
-    } else {
-      await syncFromDrive(token);
-    }
-  };
-
-  // Sincroniza dados a partir da pasta 'Assistente de Gastos' do Google Drive
-  const syncFromDrive = async (token: string) => {
-    setIsSyncing(true);
-    try {
-      const driveData = await loadExpensesFromDrive(token);
-      if (driveData) {
-        setSyncInfo(driveData.syncInfo);
-        if (driveData.expenses && driveData.expenses.length > 0) {
-          // Mescla despesas do Drive com as locais
-          setExpenses(driveData.expenses);
-          for (const exp of driveData.expenses) {
-            await saveStoredExpense(exp);
-          }
-          flashNotification('Sincronizado com a pasta Assistente de Gastos no Google Drive!');
-        } else {
-          // Se o arquivo do Drive for novo ou vazio, sobe os dados locais atuais
-          const localData = await getStoredExpenses();
-          if (localData.length > 0) {
-            await saveExpensesToDrive(token, localData);
-            flashNotification('Despesas salvas na sua nova pasta do Google Drive!');
-          }
+      try {
+        const leads = await fetchAllLeads();
+        const found = leads.find((l) => l.email?.toLowerCase() === authUser.email?.toLowerCase());
+        if (found && found.phone && found.consentAccepted) {
+          localStorage.setItem('meu_assessor_lead_profile', JSON.stringify(found));
+          return;
         }
+      } catch (err) {
+        console.warn('Erro ao consultar leads salvos:', err);
       }
-    } catch (err) {
-      console.warn('Falha na sincronização inicial com Google Drive:', err);
-    } finally {
-      setIsSyncing(false);
+      setIsLeadModalOpen(true);
     }
   };
 
-  // Notificação temporária de sincronização
-  const flashNotification = (msg: string) => {
-    setSyncNotification(msg);
-    setTimeout(() => {
-      setSyncNotification(null);
-    }, 4000);
-  };
+  // Sincronização automática constante a cada 1 minuto (60 segundos)
+  useEffect(() => {
+    if (!user) return;
+
+    const runSync = async () => {
+      const token = accessToken || (await getAccessToken());
+      if (!token || isSyncingRef.current) return;
+      await syncFromDrive(token, true);
+    };
+
+    // Sincroniza imediatamente na primeira vez
+    runSync();
+
+    // Contador regressivo de 60 segundos
+    const countdownInterval = setInterval(() => {
+      setSecondsUntilSync((prev) => {
+        if (prev <= 1) {
+          runSync();
+          return 60;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    // Re-sincronização imediata ao retornar para a aba (ex: editou no celular ou outro computador)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        runSync();
+        setSecondsUntilSync(60);
+      }
+    };
+
+    const handleWindowFocus = () => {
+      runSync();
+      setSecondsUntilSync(60);
+    };
+
+    const handleOnline = () => {
+      runSync();
+      setSecondsUntilSync(60);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWindowFocus);
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      clearInterval(countdownInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWindowFocus);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [user, accessToken, syncFromDrive]);
 
   // Login com Google bem-sucedido
   const handleLoginSuccess = async (authUser: User, token: string) => {
@@ -227,7 +371,7 @@ export default function App() {
     flashNotification('Cadastro concluído com sucesso!');
     const token = accessToken || (await getAccessToken());
     if (token) {
-      await syncFromDrive(token);
+      await syncFromDrive(token, false);
     }
   };
 
@@ -238,51 +382,43 @@ export default function App() {
       flashNotification('Conecte sua conta Google para sincronizar.');
       return;
     }
-    setIsSyncing(true);
-    try {
-      const updatedSync = await saveExpensesToDrive(token, expenses);
-      setSyncInfo(updatedSync);
-      flashNotification('Todas as despesas foram salvas no seu Google Drive!');
-    } catch (err: any) {
-      flashNotification('Erro ao salvar no Google Drive: ' + (err.message || 'Tente novamente.'));
-    } finally {
-      setIsSyncing(false);
-    }
+    await syncFromDrive(token, false);
   };
 
   // Salvar nova despesa (grava localmente e no Google Drive)
   const handleSaveExpense = async (newExpense: CorporateExpense) => {
-    await saveStoredExpense(newExpense);
-    const updatedExpenses = [newExpense, ...expenses.filter((e) => e.id !== newExpense.id)];
+    const withTimestamp: CorporateExpense = {
+      ...newExpense,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await saveStoredExpense(withTimestamp);
+    const updatedExpenses = [withTimestamp, ...expenses.filter((e) => e.id !== withTimestamp.id)];
     setExpenses(updatedExpenses);
+    expensesRef.current = updatedExpenses;
 
-    if (newExpense.date && newExpense.date.length >= 7) {
-      setSelectedMonth(newExpense.date.substring(0, 7));
+    if (withTimestamp.date && withTimestamp.date.length >= 7) {
+      setSelectedMonth(withTimestamp.date.substring(0, 7));
     }
 
-    // Grava automaticamente no Google Drive se autenticado
-    const token = accessToken || (await getAccessToken());
-    if (token) {
-      saveExpensesToDrive(token, updatedExpenses)
-        .then((info) => setSyncInfo(info))
-        .catch((e) => console.warn('Erro ao sincronizar despesa no Drive:', e));
-    }
+    triggerDriveSync(updatedExpenses, invoicesRef.current, settingsRef.current);
   };
 
   // Atualizar despesa existente (grava localmente e no Google Drive)
   const handleUpdateExpense = async (updatedExpense: CorporateExpense) => {
-    await saveStoredExpense(updatedExpense);
+    const withTimestamp: CorporateExpense = {
+      ...updatedExpense,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await saveStoredExpense(withTimestamp);
     const updatedExpenses = expenses.map((e) =>
-      e.id === updatedExpense.id ? updatedExpense : e
+      e.id === withTimestamp.id ? withTimestamp : e
     );
     setExpenses(updatedExpenses);
+    expensesRef.current = updatedExpenses;
 
-    const token = accessToken || (await getAccessToken());
-    if (token) {
-      saveExpensesToDrive(token, updatedExpenses)
-        .then((info) => setSyncInfo(info))
-        .catch((e) => console.warn('Erro ao atualizar despesa no Drive:', e));
-    }
+    triggerDriveSync(updatedExpenses, invoicesRef.current, settingsRef.current);
   };
 
   // Excluir despesa (remove localmente e atualiza Google Drive)
@@ -290,13 +426,9 @@ export default function App() {
     await deleteStoredExpense(id);
     const updatedExpenses = expenses.filter((e) => e.id !== id);
     setExpenses(updatedExpenses);
+    expensesRef.current = updatedExpenses;
 
-    const token = accessToken || (await getAccessToken());
-    if (token) {
-      saveExpensesToDrive(token, updatedExpenses)
-        .then((info) => setSyncInfo(info))
-        .catch((e) => console.warn('Erro ao remover despesa no Drive:', e));
-    }
+    triggerDriveSync(updatedExpenses, invoicesRef.current, settingsRef.current);
   };
 
   return (
@@ -318,6 +450,8 @@ export default function App() {
         user={user}
         syncInfo={syncInfo}
         isSyncing={isSyncing}
+        lastSyncedTime={lastSyncedTime}
+        secondsUntilSync={secondsUntilSync}
         onLoginSuccess={handleLoginSuccess}
         onLogout={handleLogout}
         onManualSync={handleManualSync}
@@ -378,7 +512,7 @@ export default function App() {
             {currentTab === 'settings' && (
               <SettingsView
                 settings={settings}
-                onUpdateSettings={setSettings}
+                onUpdateSettings={handleUpdateSettings}
                 onRefreshData={loadLocalData}
               />
             )}

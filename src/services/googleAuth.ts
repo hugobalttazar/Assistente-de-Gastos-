@@ -30,8 +30,40 @@ provider.setCustomParameters({
   prompt: 'select_account',
 });
 
-// Cache do token em memória durante a sessão
-let cachedAccessToken: string | null = null;
+const TOKEN_STORAGE_KEY = 'assistente_google_drive_oauth_token';
+const TOKEN_TIME_KEY = 'assistente_google_drive_oauth_time';
+
+export function getStoredAccessToken(): string | null {
+  try {
+    const token = localStorage.getItem(TOKEN_STORAGE_KEY) || sessionStorage.getItem(TOKEN_STORAGE_KEY);
+    return token || null;
+  } catch {
+    return null;
+  }
+}
+
+export function persistAccessToken(token: string) {
+  try {
+    localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    localStorage.setItem(TOKEN_TIME_KEY, String(Date.now()));
+    sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
+  } catch {
+    // ignore
+  }
+}
+
+export function clearPersistedAccessToken() {
+  try {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem(TOKEN_TIME_KEY);
+    sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+// Inicializa o cache com o token persistido
+let cachedAccessToken: string | null = getStoredAccessToken();
 let isSigningIn = false;
 
 export interface AuthErrorInfo {
@@ -132,6 +164,7 @@ export const initAuth = (
         const credential = GoogleAuthProvider.credentialFromResult(result);
         if (credential?.accessToken) {
           cachedAccessToken = credential.accessToken;
+          persistAccessToken(credential.accessToken);
           if (onAuthSuccess) {
             onAuthSuccess(result.user, cachedAccessToken);
           }
@@ -144,11 +177,14 @@ export const initAuth = (
 
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
+      const token = cachedAccessToken || getStoredAccessToken();
+      cachedAccessToken = token;
       if (onAuthSuccess) {
-        onAuthSuccess(user, cachedAccessToken);
+        onAuthSuccess(user, token);
       }
     } else {
       cachedAccessToken = null;
+      clearPersistedAccessToken();
       if (onAuthFailure) {
         onAuthFailure();
       }
@@ -173,6 +209,7 @@ export const googleSignIn = async (): Promise<{
     }
 
     cachedAccessToken = credential.accessToken;
+    persistAccessToken(credential.accessToken);
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     console.error('Erro no login com Google:', error);
@@ -191,19 +228,20 @@ export const googleSignInRedirect = async (): Promise<void> => {
 };
 
 /**
- * Retorna o access token atual em memória
+ * Retorna o access token atual em memória ou do armazenamento
  */
 export const getAccessToken = async (): Promise<string | null> => {
-  return cachedAccessToken;
+  return cachedAccessToken || getStoredAccessToken();
 };
 
 /**
- * Desconecta o usuário e limpa o token em memória
+ * Desconecta o usuário e limpa o token em memória e armazenamento
  */
 export const logout = async (): Promise<void> => {
   try {
     await signOut(auth);
   } finally {
     cachedAccessToken = null;
+    clearPersistedAccessToken();
   }
 };
