@@ -384,7 +384,7 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
               <col />
               <col style={{ width: '104px' }} />
               <col style={{ width: '92px' }} />
-              <col style={{ width: '76px' }} />
+              <col style={{ width: '104px' }} />
             </colgroup>
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-400">
@@ -412,7 +412,7 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
                   </div>
                 </th>
                 <th className="py-3 px-2 text-center">Status</th>
-                <th className="py-3 px-2 text-right">Ações</th>
+                <th className="py-3 pr-4 sm:pr-5 pl-2 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
@@ -571,12 +571,12 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
                       </td>
 
                       {/* Ações */}
-                      <td className="py-3 px-2 text-right whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1">
+                      <td className="py-3 pr-4 sm:pr-5 pl-2 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center justify-end gap-1.5">
                           {exp.receipt && (
                             <button
                               onClick={() => onViewExpense(exp)}
-                              className="p-1 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 rounded transition-colors cursor-pointer"
+                              className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors cursor-pointer"
                               title="Visualizar Comprovante"
                             >
                               <Eye className="w-3.5 h-3.5" />
@@ -584,14 +584,14 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
                           )}
                           <button
                             onClick={() => handleStartEdit(exp)}
-                            className="p-1 text-slate-400 hover:text-slate-800 dark:hover:text-white rounded transition-colors cursor-pointer"
+                            className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                             title="Editar Justificativa"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => setExpenseToDelete(exp)}
-                            className="p-1 text-slate-400 hover:text-red-500 rounded transition-colors cursor-pointer"
+                            className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors cursor-pointer"
                             title="Excluir Lançamento"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

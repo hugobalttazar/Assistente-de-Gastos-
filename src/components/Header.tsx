@@ -65,19 +65,19 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <>
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-[#0B0F17]/95 backdrop-blur-md sticky top-0 z-40 transition-colors">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           {/* Linha Principal do Cabeçalho - 3 Colunas Perfeitas no Esquadro (Altura h-16) */}
           <div className="relative flex items-center justify-between h-16 w-full">
             {/* Zona 1: Brand Wordmark (Esquerda - Alinhada à margem esquerda dos cartões) */}
-            <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-              <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 shadow-2xs">
-                <CreditCard className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 shadow-2xs">
+                <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div className="flex flex-col">
-                <span className="text-sm sm:text-base font-bold tracking-tight text-slate-900 dark:text-white whitespace-nowrap">
+                <span className="text-xs sm:text-base font-bold tracking-tight text-slate-900 dark:text-white whitespace-nowrap">
                   Assistente de Gastos
                 </span>
-                <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium tracking-wide">
+                <span className="text-[9px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium tracking-wide">
                   Cartão Corporativo
                 </span>
               </div>
@@ -145,7 +145,7 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             {/* Zona 3: Ações e Ferramentas Rigorosamente no Esquadro à Direita */}
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               {/* Seletor de Competência (Desktop) */}
               <div className="hidden md:flex items-center h-9 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 text-xs text-slate-700 dark:text-slate-300 shrink-0 shadow-2xs">
                 <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0 mr-1.5" />
@@ -173,11 +173,11 @@ export const Header: React.FC<HeaderProps> = ({
                 )}
               </button>
 
-              {/* Ação Primária: Escanear Comprovante */}
+              {/* Ação Primária: Escanear Comprovante (visível em tablet/desktop; no mobile utiliza-se o botão central da Bottom Navigation) */}
               <button
                 onClick={onOpenScanner}
                 disabled={invoiceStatus?.status === 'fechada'}
-                className="h-9 flex items-center justify-center gap-1.5 px-3.5 text-xs font-bold text-slate-950 bg-emerald-500 hover:bg-emerald-400 active:scale-95 transition-all rounded-lg shadow-xs whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                className="hidden sm:flex h-9 items-center justify-center gap-1.5 px-3.5 text-xs font-bold text-slate-950 bg-emerald-500 hover:bg-emerald-400 active:scale-95 transition-all rounded-lg shadow-xs whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 title={
                   invoiceStatus?.status === 'fechada'
                     ? 'Fatura fechada. Reabra a fatura para adicionar novos comprovantes.'

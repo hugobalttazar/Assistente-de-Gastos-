@@ -97,6 +97,20 @@ export default function App() {
   const [isInvoicesHistoryModalOpen, setIsInvoicesHistoryModalOpen] = useState(false);
   const [targetMonthForClosing, setTargetMonthForClosing] = useState<string>(selectedMonth);
 
+  // Flag que identifica se o usuário está com algum modal ativo (inserindo comprovante, auditando, etc.)
+  const isUserInteractingWithModal =
+    isScannerOpen ||
+    !!viewingExpense ||
+    isCloseInvoiceModalOpen ||
+    isInvoicesHistoryModalOpen ||
+    isLeadModalOpen ||
+    isAdminLeadsModalOpen;
+
+  const isUserInteractingRef = useRef(isUserInteractingWithModal);
+  useEffect(() => {
+    isUserInteractingRef.current = isUserInteractingWithModal;
+  }, [isUserInteractingWithModal]);
+
   const currentInvoice = invoices.find((inv) => inv.month === selectedMonth) || null;
 
   // Notificação temporária de sincronização
@@ -387,16 +401,24 @@ export default function App() {
     if (!user) return;
 
     const runSync = async () => {
+      // Se o usuário estiver inserindo um comprovante ou com modal ativo, suspende a auto-sincronização
+      if (isUserInteractingRef.current) return;
       const token = accessToken || (await getAccessToken());
       if (!token || isSyncingRef.current) return;
       await syncFromDrive(token, true);
     };
 
-    // Sincroniza imediatamente na primeira vez
-    runSync();
+    // Sincroniza imediatamente na primeira vez caso nenhum modal esteja aberto
+    if (!isUserInteractingRef.current) {
+      runSync();
+    }
 
-    // Contador regressivo de 60 segundos
+    // Contador regressivo de 60 segundos com pausa inteligente quando modais estão abertos
     const countdownInterval = setInterval(() => {
+      if (isUserInteractingRef.current) {
+        // Mantém a contagem congelada para não disparar nem interferir na tela do usuário
+        return;
+      }
       setSecondsUntilSync((prev) => {
         if (prev <= 1) {
           runSync();
@@ -408,20 +430,24 @@ export default function App() {
 
     // Re-sincronização imediata ao retornar para a aba (ex: editou no celular ou outro computador)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && !isUserInteractingRef.current) {
         runSync();
         setSecondsUntilSync(60);
       }
     };
 
     const handleWindowFocus = () => {
-      runSync();
-      setSecondsUntilSync(60);
+      if (!isUserInteractingRef.current) {
+        runSync();
+        setSecondsUntilSync(60);
+      }
     };
 
     const handleOnline = () => {
-      runSync();
-      setSecondsUntilSync(60);
+      if (!isUserInteractingRef.current) {
+        runSync();
+        setSecondsUntilSync(60);
+      }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -519,10 +545,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-emerald-500/30 selection:text-emerald-500 transition-colors duration-200">
-      {/* Barra de Notificação de Sincronização */}
+      {/* Notificação Flutuante (Toast discreto sem causar deslocamento de tela) */}
       {syncNotification && (
-        <div className="bg-emerald-500 text-slate-950 font-semibold text-xs py-1.5 px-4 text-center z-50 animate-in fade-in slide-in-from-top-1 flex items-center justify-center gap-2 shadow-md">
-          <span>{syncNotification}</span>
+        <div className="fixed top-4 right-4 z-50 pointer-events-none animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="bg-emerald-600 text-white font-semibold text-xs py-2 px-3.5 rounded-xl shadow-lg border border-emerald-500/40 flex items-center gap-2 backdrop-blur-md">
+            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+            <span>{syncNotification}</span>
+          </div>
         </div>
       )}
 
