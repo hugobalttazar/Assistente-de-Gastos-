@@ -14,7 +14,6 @@ import {
   Settings,
 } from 'lucide-react';
 import { User } from 'firebase/auth';
-import { PWAInstallButton } from './PWAInstallButton';
 import { GoogleDriveUserMenu } from './GoogleDriveUserMenu';
 import { DriveSyncInfo } from '../services/googleDriveStorage';
 import { InvoiceStatement } from '../types/expense';
@@ -67,11 +66,11 @@ export const Header: React.FC<HeaderProps> = ({
     <>
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-[#0B0F17]/95 backdrop-blur-md sticky top-0 z-40 transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Linha Principal do Cabeçalho - Altura h-16 e alinhamento estrito em esquadro */}
-          <div className="flex items-center justify-between gap-3 h-16">
-            {/* Zona 1: Brand Wordmark */}
+          {/* Linha Principal do Cabeçalho - 3 Colunas Perfeitas no Esquadro (Altura h-16) */}
+          <div className="relative flex items-center justify-between h-16 w-full">
+            {/* Zona 1: Brand Wordmark (Esquerda - Alinhada à margem esquerda dos cartões) */}
             <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-              <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+              <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 shadow-2xs">
                 <CreditCard className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div className="flex flex-col">
@@ -84,92 +83,71 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </div>
 
-            {/* Zona 2: Nav Links Desktop / Tablet (lg+) */}
-            <nav className="hidden lg:flex items-center gap-1 text-sm font-medium">
-              <button
-                onClick={() => onSelectTab('dashboard')}
-                className={`h-9 px-3 rounded-lg transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
-                  currentTab === 'dashboard'
-                    ? 'bg-slate-100 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 font-semibold shadow-xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/70 dark:hover:bg-slate-800/50'
-                }`}
+            {/* Zona 2: Cápsula Centralizada de Navegação (Plano 1 - Perfeitamente ancorada ao Centro Matemático) */}
+            <div className="hidden lg:flex items-center justify-center absolute left-1/2 -translate-x-1/2 pointer-events-none">
+              <nav
+                aria-label="Navegação Central"
+                className="pointer-events-auto bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 p-1 rounded-xl shadow-xs backdrop-blur-md flex items-center gap-1"
               >
-                <LayoutDashboard className="w-4 h-4" />
-                <span>Painel</span>
-              </button>
-              <button
-                onClick={() => onSelectTab('table')}
-                className={`h-9 px-3 rounded-lg transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
-                  currentTab === 'table'
-                    ? 'bg-slate-100 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 font-semibold shadow-xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/70 dark:hover:bg-slate-800/50'
-                }`}
-              >
-                <Receipt className="w-4 h-4" />
-                <span>Mesa de Despesas</span>
-              </button>
-              <button
-                onClick={() => onSelectTab('report')}
-                className={`h-9 px-3 rounded-lg transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
-                  currentTab === 'report'
-                    ? 'bg-slate-100 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 font-semibold shadow-xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/70 dark:hover:bg-slate-800/50'
-                }`}
-              >
-                <FileText className="w-4 h-4" />
-                <span>Relatório Mensal</span>
-              </button>
-              <button
-                onClick={() => onSelectTab('settings')}
-                className={`h-9 px-3 rounded-lg transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
-                  currentTab === 'settings'
-                    ? 'bg-slate-100 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 font-semibold shadow-xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/70 dark:hover:bg-slate-800/50'
-                }`}
-              >
-                <Settings className="w-4 h-4" />
-                <span>Configurações</span>
-              </button>
-              <button
-                onClick={onOpenInvoicesHistory}
-                className="h-9 px-3 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/70 dark:hover:bg-slate-800/50 transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer"
-                title="Consultar histórico de faturas fechadas e abertas"
-              >
-                <Archive className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>Faturas</span>
-              </button>
-            </nav>
+                <button
+                  onClick={() => onSelectTab('dashboard')}
+                  className={`h-8 px-3 rounded-lg transition-all whitespace-nowrap flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
+                    currentTab === 'dashboard'
+                      ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/50'
+                  }`}
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span>Painel</span>
+                </button>
+                <button
+                  onClick={() => onSelectTab('table')}
+                  className={`h-8 px-3 rounded-lg transition-all whitespace-nowrap flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
+                    currentTab === 'table'
+                      ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/50'
+                  }`}
+                >
+                  <Receipt className="w-3.5 h-3.5" />
+                  <span>Mesa de Despesas</span>
+                </button>
+                <button
+                  onClick={() => onSelectTab('report')}
+                  className={`h-8 px-3 rounded-lg transition-all whitespace-nowrap flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
+                    currentTab === 'report'
+                      ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/50'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Relatório</span>
+                </button>
+                <button
+                  onClick={() => onSelectTab('settings')}
+                  className={`h-8 px-3 rounded-lg transition-all whitespace-nowrap flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
+                    currentTab === 'settings'
+                      ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/50'
+                  }`}
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                  <span>Configurações</span>
+                </button>
+                <button
+                  onClick={onOpenInvoicesHistory}
+                  className="h-8 px-3 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/50 transition-all whitespace-nowrap flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
+                  title="Consultar histórico de faturas fechadas e abertas"
+                >
+                  <Archive className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>Faturas</span>
+                </button>
+              </nav>
+            </div>
 
-            {/* Zona 3: Ações e Ferramentas em Esquadro Perfeito (Todos h-9 e alinhamento central) */}
+            {/* Zona 3: Ações e Ferramentas Rigorosamente no Esquadro à Direita */}
             <div className="flex items-center gap-2 shrink-0">
-              {/* Instalar App (visível em telas amplas para economizar espaço) */}
-              <PWAInstallButton />
-
-              {/* Status de Fatura (em telas muito amplas) */}
-              <div className="hidden 2xl:flex items-center">
-                {invoiceStatus?.status === 'fechada' ? (
-                  <button
-                    onClick={onOpenInvoicesHistory}
-                    className="h-9 flex items-center gap-1.5 px-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-colors cursor-pointer shrink-0"
-                    title="Fatura deste mês está Fechada. Clique para gerenciar ou reabrir."
-                  >
-                    <Lock className="w-3.5 h-3.5" />
-                    <span>Fatura Fechada</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={onRequestCloseInvoice}
-                    className="h-9 flex items-center gap-1.5 px-2.5 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 hover:border-amber-500/40 text-slate-700 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-xs font-medium transition-colors cursor-pointer shrink-0"
-                    title="Concluiu os lançamentos deste mês? Clique para fechar a fatura."
-                  >
-                    <Unlock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    <span>Fechar Fatura</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Seletor de Competência (Desktop/Tablet) */}
-              <div className="hidden md:flex items-center h-9 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 text-xs text-slate-700 dark:text-slate-300 shrink-0">
+              {/* Seletor de Competência (Desktop) */}
+              <div className="hidden md:flex items-center h-9 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 text-xs text-slate-700 dark:text-slate-300 shrink-0 shadow-2xs">
                 <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0 mr-1.5" />
                 <input
                   type="month"
@@ -184,7 +162,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={toggleTheme}
-                className="h-9 w-9 flex items-center justify-center rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors shadow-xs cursor-pointer shrink-0"
+                className="h-9 w-9 flex items-center justify-center rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors shadow-2xs cursor-pointer shrink-0"
                 title={isDark ? 'Alternar para Modo Claro' : 'Alternar para Modo Escuro'}
                 aria-label="Alternar modo claro e escuro"
               >
@@ -199,15 +177,15 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={onOpenScanner}
                 disabled={invoiceStatus?.status === 'fechada'}
-                className="h-9 flex items-center justify-center gap-1.5 px-3 text-xs font-semibold text-slate-950 bg-emerald-500 hover:bg-emerald-400 active:scale-95 transition-all rounded-lg shadow-xs whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                className="h-9 flex items-center justify-center gap-1.5 px-3.5 text-xs font-bold text-slate-950 bg-emerald-500 hover:bg-emerald-400 active:scale-95 transition-all rounded-lg shadow-xs whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 title={
                   invoiceStatus?.status === 'fechada'
                     ? 'Fatura fechada. Reabra a fatura para adicionar novos comprovantes.'
                     : 'Escanear novo comprovante com IA'
                 }
               >
-                <Plus className="w-4 h-4 stroke-[2.5]" />
-                <span className="hidden sm:inline">Escanear</span>
+                <Plus className="w-4 h-4 stroke-[3]" />
+                <span>Escanear</span>
               </button>
 
               {/* Menu do Usuário & Conexão Google Drive em Esquadro Perfeito */}
@@ -255,7 +233,7 @@ export const Header: React.FC<HeaderProps> = ({
                   className="h-8 px-2.5 text-[11px] font-bold text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-center gap-1 cursor-pointer"
                   title="Reabrir fatura para novos lançamentos"
                 >
-                  <Unlock className="w-3 h-3" />
+                  <Unlock className="w-3.5 h-3.5" />
                   <span>Reabrir</span>
                 </button>
               ) : (
@@ -264,7 +242,7 @@ export const Header: React.FC<HeaderProps> = ({
                   className="h-8 px-2.5 text-[11px] font-bold text-slate-950 bg-amber-500 hover:bg-amber-400 rounded-lg flex items-center gap-1 cursor-pointer"
                   title="Encerrar lançamentos e fechar fatura deste mês"
                 >
-                  <Lock className="w-3 h-3" />
+                  <Lock className="w-3.5 h-3.5" />
                   <span>Fechar</span>
                 </button>
               )}
