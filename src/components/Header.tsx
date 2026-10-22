@@ -66,9 +66,9 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <>
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-[#0B0F17]/95 backdrop-blur-md sticky top-0 z-40 transition-colors">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Linha Principal do Cabeçalho - Altura h-16 e alinhamento estrito em esquadro */}
-          <div className="flex items-center justify-between gap-2 sm:gap-4 h-16">
+          <div className="flex items-center justify-between gap-3 h-16">
             {/* Zona 1: Brand Wordmark */}
             <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
               <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
@@ -84,7 +84,7 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </div>
 
-            {/* Zona 2: Nav Links Desktop / Tablet (md+) */}
+            {/* Zona 2: Nav Links Desktop / Tablet (lg+) */}
             <nav className="hidden lg:flex items-center gap-1 text-sm font-medium">
               <button
                 onClick={() => onSelectTab('dashboard')}
@@ -95,7 +95,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <LayoutDashboard className="w-4 h-4" />
-                <span>Painel Geral</span>
+                <span>Painel</span>
               </button>
               <button
                 onClick={() => onSelectTab('table')}
@@ -141,11 +141,12 @@ export const Header: React.FC<HeaderProps> = ({
             </nav>
 
             {/* Zona 3: Ações e Ferramentas em Esquadro Perfeito (Todos h-9 e alinhamento central) */}
-            <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Instalar App (visível em telas amplas para economizar espaço) */}
               <PWAInstallButton />
 
-              {/* Status de Fatura (Oculto em telas ultra-pequenas, exibido na sub-barra mobile) */}
-              <div className="hidden xl:flex items-center">
+              {/* Status de Fatura (em telas muito amplas) */}
+              <div className="hidden 2xl:flex items-center">
                 {invoiceStatus?.status === 'fechada' ? (
                   <button
                     onClick={onOpenInvoicesHistory}
@@ -239,89 +240,102 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             {/* Status da Fatura Mobile */}
-            {invoiceStatus?.status === 'fechada' ? (
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={onOpenInvoicesHistory}
-                className="h-8 flex items-center justify-center gap-1.5 px-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-semibold cursor-pointer shrink-0"
+                className="h-8 px-2 text-[11px] font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg flex items-center gap-1 cursor-pointer"
               >
-                <Lock className="w-3.5 h-3.5" />
-                <span>Fatura Fechada</span>
+                <Archive className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                <span>Faturas</span>
               </button>
-            ) : (
-              <button
-                onClick={onRequestCloseInvoice}
-                className="h-8 flex items-center justify-center gap-1.5 px-2.5 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium cursor-pointer shrink-0"
-              >
-                <Unlock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span>Fechar Fatura</span>
-              </button>
-            )}
+
+              {invoiceStatus?.status === 'fechada' ? (
+                <button
+                  onClick={onReopenInvoice}
+                  className="h-8 px-2.5 text-[11px] font-bold text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-center gap-1 cursor-pointer"
+                  title="Reabrir fatura para novos lançamentos"
+                >
+                  <Unlock className="w-3 h-3" />
+                  <span>Reabrir</span>
+                </button>
+              ) : (
+                <button
+                  onClick={onRequestCloseInvoice}
+                  className="h-8 px-2.5 text-[11px] font-bold text-slate-950 bg-amber-500 hover:bg-amber-400 rounded-lg flex items-center gap-1 cursor-pointer"
+                  title="Encerrar lançamentos e fechar fatura deste mês"
+                >
+                  <Lock className="w-3 h-3" />
+                  <span>Fechar</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Barra de Navegação Inferior Nativa para Mobile (Smartphones e Tablets < md) */}
+      {/* Barra de Navegação Inferior Dedicada para Smartphones (Mobile Bottom Navigation) */}
       <nav
-        aria-label="Navegação móvel"
-        className="print:hidden md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#0B0F17]/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 shadow-xl px-2 py-1 safe-area-bottom transition-colors"
+        aria-label="Navegação Principal Mobile"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#0B0F17]/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-2 py-1 flex items-center justify-around shadow-lg transition-colors"
       >
-        <div className="flex items-center justify-around max-w-md mx-auto">
-          <button
-            onClick={() => onSelectTab('dashboard')}
-            className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition-all min-h-[48px] cursor-pointer ${
-              currentTab === 'dashboard'
-                ? 'text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
-          >
-            <LayoutDashboard className="w-4 h-4 mb-0.5" />
-            <span className="text-[10px]">Painel</span>
-          </button>
+        <button
+          onClick={() => onSelectTab('dashboard')}
+          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-lg min-w-[56px] min-h-[48px] transition-colors cursor-pointer ${
+            currentTab === 'dashboard'
+              ? 'text-emerald-600 dark:text-emerald-400 font-bold'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <LayoutDashboard className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] leading-tight">Painel</span>
+        </button>
 
-          <button
-            onClick={() => onSelectTab('table')}
-            className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition-all min-h-[48px] cursor-pointer ${
-              currentTab === 'table'
-                ? 'text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
-          >
-            <Receipt className="w-4 h-4 mb-0.5" />
-            <span className="text-[10px]">Despesas</span>
-          </button>
+        <button
+          onClick={() => onSelectTab('table')}
+          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-lg min-w-[56px] min-h-[48px] transition-colors cursor-pointer ${
+            currentTab === 'table'
+              ? 'text-emerald-600 dark:text-emerald-400 font-bold'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Receipt className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] leading-tight">Despesas</span>
+        </button>
 
-          <button
-            onClick={() => onSelectTab('report')}
-            className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition-all min-h-[48px] cursor-pointer ${
-              currentTab === 'report'
-                ? 'text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
-          >
-            <FileText className="w-4 h-4 mb-0.5" />
-            <span className="text-[10px]">Relatório</span>
-          </button>
+        {/* Botão de Destaque Central: Escanear */}
+        <button
+          onClick={onOpenScanner}
+          disabled={invoiceStatus?.status === 'fechada'}
+          className="flex flex-col items-center justify-center -mt-4 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 p-2.5 rounded-full shadow-lg border-4 border-white dark:border-[#0B0F17] transition-all cursor-pointer disabled:opacity-40"
+          title="Digitalizar Comprovante"
+          aria-label="Digitalizar comprovante"
+        >
+          <Plus className="w-6 h-6 stroke-[3]" />
+        </button>
 
-          <button
-            onClick={onOpenInvoicesHistory}
-            className="flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition-all min-h-[48px] text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
-          >
-            <Archive className="w-4 h-4 mb-0.5" />
-            <span className="text-[10px]">Faturas</span>
-          </button>
+        <button
+          onClick={() => onSelectTab('report')}
+          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-lg min-w-[56px] min-h-[48px] transition-colors cursor-pointer ${
+            currentTab === 'report'
+              ? 'text-emerald-600 dark:text-emerald-400 font-bold'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <FileText className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] leading-tight">Relatório</span>
+        </button>
 
-          <button
-            onClick={() => onSelectTab('settings')}
-            className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-lg transition-all min-h-[48px] cursor-pointer ${
-              currentTab === 'settings'
-                ? 'text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
-          >
-            <Settings className="w-4 h-4 mb-0.5" />
-            <span className="text-[10px]">Ajustes</span>
-          </button>
-        </div>
+        <button
+          onClick={() => onSelectTab('settings')}
+          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-lg min-w-[56px] min-h-[48px] transition-colors cursor-pointer ${
+            currentTab === 'settings'
+              ? 'text-emerald-600 dark:text-emerald-400 font-bold'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Settings className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] leading-tight">Ajustes</span>
+        </button>
       </nav>
     </>
   );
