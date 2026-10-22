@@ -97,6 +97,63 @@ app.get('/api/leads', (req, res) => {
   }
 });
 
+// --- BASE DE DADOS EM NUVEM CENTRALIZADA (Sincronização Multi-Dispositivo) ---
+const CLOUD_DATA_DIR = path.join(__dirname, 'data', 'cloud');
+
+function getCloudUserFilePath(emailOrUid: string): string {
+  if (!fs.existsSync(CLOUD_DATA_DIR)) {
+    fs.mkdirSync(CLOUD_DATA_DIR, { recursive: true });
+  }
+  const safeKey = emailOrUid.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+  return path.join(CLOUD_DATA_DIR, `user_${safeKey}.json`);
+}
+
+// Endpoint para ler dados da nuvem por usuário (para novos celulares/computadores)
+app.get('/api/cloud-sync', (req, res) => {
+  try {
+    const userKey = (req.query.userKey as string) || (req.query.email as string);
+    if (!userKey) {
+      return res.status(400).json({ error: 'userKey ou email é obrigatório.' });
+    }
+
+    const filePath = getCloudUserFilePath(userKey);
+    if (!fs.existsSync(filePath)) {
+      return res.json({ success: true, exists: false, expenses: [], invoices: [] });
+    }
+
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    const data = JSON.parse(raw);
+    return res.json({ success: true, exists: true, ...data });
+  } catch (error: any) {
+    console.error('Erro ao ler dados da nuvem:', error);
+    return res.status(500).json({ error: 'Erro ao buscar dados na nuvem.' });
+  }
+});
+
+// Endpoint para salvar dados na nuvem
+app.post('/api/cloud-sync', (req, res) => {
+  try {
+    const { userKey, expenses, invoices, settings } = req.body;
+    if (!userKey) {
+      return res.status(400).json({ error: 'userKey é obrigatório.' });
+    }
+
+    const filePath = getCloudUserFilePath(userKey);
+    const payload = {
+      updatedAt: new Date().toISOString(),
+      expenses: Array.isArray(expenses) ? expenses : [],
+      invoices: Array.isArray(invoices) ? invoices : [],
+      settings: settings || null,
+    };
+
+    fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf-8');
+    return res.json({ success: true, updatedAt: payload.updatedAt, count: payload.expenses.length });
+  } catch (error: any) {
+    console.error('Erro ao salvar dados na nuvem:', error);
+    return res.status(500).json({ error: 'Erro ao persistir dados na nuvem.' });
+  }
+});
+
 // Inicialização do cliente Gemini server-side
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,

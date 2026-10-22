@@ -344,26 +344,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </form>
       </div>
 
-      {/* Gerenciamento de Dados & Backup Local */}
+      {/* Armazenamento em Nuvem & Backup */}
       <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl p-5 sm:p-6 transition-colors shadow-xs">
         <div className="flex items-center gap-2.5 pb-4 border-b border-slate-200 dark:border-slate-800 mb-4">
-          <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
             <Database className="w-4 h-4" />
           </div>
           <div>
             <h2 className="text-base font-semibold text-slate-900 dark:text-white">
-              Banco de Dados Local & Backup
+              Armazenamento em Nuvem & Backup
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Seus dados e comprovantes estão salvos localmente no seu navegador via IndexedDB.
+              Seus dados e relatórios são sincronizados na Nuvem (Google Drive e Nuvem Multi-Aparelhos).
             </p>
           </div>
         </div>
 
         <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-4">
-          Você pode fazer o download de um arquivo JSON completo contendo todos os
-          seus registros e imagens de comprovantes para manter como cópia de segurança
-          ou transferir para outro dispositivo.
+          A nuvem é a fonte autoritativa principal para garantir que seus dados apareçam no celular, tablet e computador.
+          O armazenamento local no navegador atua exclusivamente como cache transitório offline.
+          Você também pode gerar um arquivo JSON completo para manter como cópia de segurança pessoal ou restaurar a qualquer momento.
         </p>
 
         {backupMessage && (

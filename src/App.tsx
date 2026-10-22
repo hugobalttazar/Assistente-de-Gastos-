@@ -32,6 +32,8 @@ import {
   loadExpensesFromDrive,
   saveExpensesToDrive,
   syncExpensesWithDrive,
+  saveToCloudApi,
+  loadFromCloudApi,
 } from './services/googleDriveStorage';
 import { getLocalLeadProfile, fetchAllLeads, LeadRegistration } from './services/leadsService';
 import { exchangeCodeForApiKey } from './services/openRouterService';
@@ -65,6 +67,11 @@ export default function App() {
 
   // Estados de Usuário e Google Drive
   const [user, setUser] = useState<User | null>(null);
+  const userRef = useRef<User | null>(user);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [syncInfo, setSyncInfo] = useState<DriveSyncInfo | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -100,12 +107,17 @@ export default function App() {
     }, 4000);
   }, []);
 
-  // Envio imediato das alterações para o Google Drive
+  // Envio imediato das alterações para a Nuvem Central e Google Drive
   const triggerDriveSync = async (
     targetExpenses: CorporateExpense[],
     targetInvoices: InvoiceStatement[],
     targetSettings: CompanySettings
   ) => {
+    // 1. Grava na Nuvem Central imediatamente para sincronizar instantaneamente entre celular e PC
+    const userKey = userRef.current?.email || localStorage.getItem('meu_assessor_last_user_email') || 'default';
+    saveToCloudApi(userKey, targetExpenses, targetInvoices, targetSettings);
+
+    // 2. Grava no Google Drive (JSON + Relatório Google Docs formatado)
     const token = accessToken || (await getAccessToken());
     if (token) {
       try {
@@ -150,7 +162,7 @@ export default function App() {
     triggerDriveSync(expensesRef.current, invoicesRef.current, newSettings);
   };
 
-  // Carrega despesas locais ao montar
+  // Carrega despesas locais e nuvem ao montar
   useEffect(() => {
     loadLocalData();
   }, []);
@@ -158,14 +170,38 @@ export default function App() {
   const loadLocalData = async () => {
     try {
       setIsLoading(true);
+      // 1. Carrega dados do cache local offline
       const data = await getStoredExpenses();
       setExpenses(data);
       expensesRef.current = data;
       const savedSettings = getCompanySettings();
       setSettings(savedSettings);
       settingsRef.current = savedSettings;
+
+      // 2. Se houver usuário salvo anteriormente, puxa imediatamente da Nuvem Central
+      const lastEmail = localStorage.getItem('meu_assessor_last_user_email');
+      if (lastEmail) {
+        const cloudData = await loadFromCloudApi(lastEmail);
+        if (cloudData && cloudData.exists) {
+          if (cloudData.expenses) {
+            setExpenses(cloudData.expenses);
+            expensesRef.current = cloudData.expenses;
+            await saveAllExpenses(cloudData.expenses);
+          }
+          if (cloudData.invoices) {
+            setInvoices(cloudData.invoices);
+            invoicesRef.current = cloudData.invoices;
+            saveStoredInvoices(cloudData.invoices);
+          }
+          if (cloudData.settings) {
+            setSettings(cloudData.settings);
+            settingsRef.current = cloudData.settings;
+            saveCompanySettings(cloudData.settings);
+          }
+        }
+      }
     } catch (err) {
-      console.error('Erro ao carregar dados locais:', err);
+      console.error('Erro ao carregar dados:', err);
     } finally {
       setIsLoading(false);
     }
@@ -258,10 +294,33 @@ export default function App() {
     const unsubscribe = initAuth(
       async (authUser, token) => {
         setUser(authUser);
+        if (authUser?.email) {
+          localStorage.setItem('meu_assessor_last_user_email', authUser.email);
+        }
         const currentToken = token || (await getAccessToken());
         if (currentToken) {
           setAccessToken(currentToken);
           checkLeadAndSync(authUser, currentToken);
+        } else if (authUser?.email) {
+          // Mesmo se o token OAuth do Drive ainda não estiver ativo, carrega os dados da Nuvem Central
+          const cloudData = await loadFromCloudApi(authUser.email);
+          if (cloudData && cloudData.exists) {
+            if (cloudData.expenses) {
+              setExpenses(cloudData.expenses);
+              expensesRef.current = cloudData.expenses;
+              await saveAllExpenses(cloudData.expenses);
+            }
+            if (cloudData.invoices) {
+              setInvoices(cloudData.invoices);
+              invoicesRef.current = cloudData.invoices;
+              saveStoredInvoices(cloudData.invoices);
+            }
+            if (cloudData.settings) {
+              setSettings(cloudData.settings);
+              settingsRef.current = cloudData.settings;
+              saveCompanySettings(cloudData.settings);
+            }
+          }
         }
       },
       () => {
@@ -274,9 +333,36 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Verifica o lead SEM bloquear a sincronização imediata
+  // Verifica o lead e sincroniza Nuvem e Drive
   const checkLeadAndSync = async (authUser: User, token: string) => {
-    // 1. SEMPRE sincroniza o Drive primeiro para carregar imediatamente as modificações feitas em outros aparelhos
+    if (authUser.email) {
+      localStorage.setItem('meu_assessor_last_user_email', authUser.email);
+      // Puxa instantaneamente da Nuvem Central primeiro para evitar delay
+      try {
+        const cloudData = await loadFromCloudApi(authUser.email);
+        if (cloudData && cloudData.exists) {
+          if (cloudData.expenses) {
+            setExpenses(cloudData.expenses);
+            expensesRef.current = cloudData.expenses;
+            await saveAllExpenses(cloudData.expenses);
+          }
+          if (cloudData.invoices) {
+            setInvoices(cloudData.invoices);
+            invoicesRef.current = cloudData.invoices;
+            saveStoredInvoices(cloudData.invoices);
+          }
+          if (cloudData.settings) {
+            setSettings(cloudData.settings);
+            settingsRef.current = cloudData.settings;
+            saveCompanySettings(cloudData.settings);
+          }
+        }
+      } catch (e) {
+        console.warn('Aviso: falha na recuperação rápida cloud-sync:', e);
+      }
+    }
+
+    // 1. SEMPRE sincroniza o Drive (atualiza banco JSON e Documento Google Docs na pasta do Drive)
     await syncFromDrive(token, false);
 
     // 2. Verifica se o usuário já possui cadastro
@@ -482,6 +568,9 @@ export default function App() {
                 onRequestCloseInvoice={() => handleRequestCloseInvoice()}
                 onReopenInvoice={() => handleReopenInvoice()}
                 onOpenInvoicesHistory={() => setIsInvoicesHistoryModalOpen(true)}
+                user={user}
+                syncInfo={syncInfo}
+                onLoginSuccess={handleLoginSuccess}
               />
             )}
 
@@ -535,7 +624,7 @@ export default function App() {
                   Google Drive Privado: /Assistente de Gastos
                 </span>
               ) : (
-                'Armazenamento Seguro Local (IndexedDB)'
+                'Armazenamento em Nuvem (Google Drive & Central)'
               )}
             </span>
             <span aria-hidden="true">·</span>

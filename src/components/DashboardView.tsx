@@ -11,8 +11,16 @@ import {
   Lock,
   Unlock,
   Archive,
+  Cloud,
+  FolderOpen,
+  ExternalLink,
+  Smartphone,
+  ShieldCheck,
 } from 'lucide-react';
+import { User } from 'firebase/auth';
 import { CorporateExpense, InvoiceStatement } from '../types/expense';
+import { DriveSyncInfo } from '../services/googleDriveStorage';
+import { googleSignIn } from '../services/googleAuth';
 
 interface DashboardViewProps {
   expenses: CorporateExpense[];
@@ -24,6 +32,9 @@ interface DashboardViewProps {
   onRequestCloseInvoice: () => void;
   onReopenInvoice: () => void;
   onOpenInvoicesHistory: () => void;
+  user?: User | null;
+  syncInfo?: DriveSyncInfo | null;
+  onLoginSuccess?: (user: User, accessToken: string) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -36,6 +47,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onRequestCloseInvoice,
   onReopenInvoice,
   onOpenInvoicesHistory,
+  user,
+  syncInfo,
+  onLoginSuccess,
 }) => {
   // Filtra as despesas pelo mês selecionado
   const monthExpenses = expenses.filter((e) => e.date.startsWith(selectedMonth));
@@ -112,6 +126,95 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Card Informativo de Sincronização em Nuvem (Multi-Dispositivos & Google Drive) */}
+      {!user ? (
+        <div className="bg-gradient-to-r from-blue-500/10 via-emerald-500/10 to-transparent border border-blue-200 dark:border-blue-900/60 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-lg bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+              <Smartphone className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                  Acessando do Celular ou de outro computador?
+                </span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+                  Nuvem Ativa
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 leading-relaxed">
+                Conecte sua Conta Google para sincronizar e carregar instantaneamente todas as suas despesas e comprovantes salvos na nuvem.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={async () => {
+              try {
+                const res = await googleSignIn();
+                if (res && onLoginSuccess) {
+                  onLoginSuccess(res.user, res.accessToken);
+                }
+              } catch (e) {
+                console.warn('Erro ao conectar Google:', e);
+              }
+            }}
+            className="h-9 px-4 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 active:scale-95 transition-all rounded-lg flex items-center justify-center gap-2 shrink-0 cursor-pointer shadow-xs"
+          >
+            <Cloud className="w-4 h-4" />
+            <span>Conectar Conta Google</span>
+          </button>
+        </div>
+      ) : (
+        <div className="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 sm:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/20">
+              <Cloud className="w-4 h-4" />
+            </div>
+            <div className="text-xs">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-slate-900 dark:text-white">
+                  Nuvem Ativa & Sincronizada
+                </span>
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  {user.email}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Seus lançamentos estão sincronizados na nuvem central e na sua pasta do Google Drive (<span className="font-mono text-emerald-600 dark:text-emerald-400 font-medium">Assistente de Gastos</span>).
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 shrink-0 pt-1 md:pt-0">
+            {syncInfo?.folderUrl && (
+              <a
+                href={syncInfo.folderUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-8 px-3 text-[11px] font-semibold text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                <FolderOpen className="w-3.5 h-3.5 text-amber-500" />
+                <span>Pasta Google Drive</span>
+                <ExternalLink className="w-3 h-3 opacity-60" />
+              </a>
+            )}
+            {syncInfo?.reportDocUrl && (
+              <a
+                href={syncInfo.reportDocUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-8 px-3 text-[11px] font-semibold text-blue-700 dark:text-blue-300 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                <FileCheck className="w-3.5 h-3.5 text-blue-500" />
+                <span>Documento Google Docs</span>
+                <ExternalLink className="w-3 h-3 opacity-60" />
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Card de Gestão do Ciclo de Fatura (Aberta / Fechada) */}
       <div
