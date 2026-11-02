@@ -9,7 +9,6 @@ import {
   CreditCard,
   CheckCircle2,
   AlertTriangle,
-  Globe,
   Flame,
   Info,
   Monitor,
@@ -204,6 +203,67 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </p>
             </div>
           </button>
+        </div>
+      </div>
+
+      {/* Identidade Visual & Ícone Oficial para Publicação no Google */}
+      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl p-5 sm:p-6 transition-colors shadow-xs">
+        <div className="flex items-center gap-2.5 pb-4 border-b border-slate-200 dark:border-slate-800 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <Sparkles className="w-4 h-4" />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+              Identidade Visual & Ícone do Aplicativo
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Ícone oficial em PNG de alta resolução (512x512) para a Tela de Consentimento do Google Cloud e lojas de aplicativos.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center gap-5 pt-1">
+          {/* Pré-visualização do Ícone */}
+          <div className="relative group shrink-0">
+            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-emerald-500/40 shadow-lg bg-slate-950 p-1">
+              <img
+                src="/app-icon-512.png"
+                alt="Ícone do Aplicativo Assistente de Gastos"
+                className="w-full h-full object-cover rounded-xl"
+              />
+            </div>
+            <span className="absolute -bottom-2 -right-2 bg-emerald-500 text-slate-950 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-xs">
+              512x512
+            </span>
+          </div>
+
+          {/* Detalhes e Botão de Download */}
+          <div className="flex-1 text-center sm:text-left space-y-2">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              Assistente de Gastos · Ícone Oficial (.PNG)
+            </h3>
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              Desenvolvido na proporção quadrada 1:1 exigida pelo Google Cloud Console na seção <strong>"Logotipo do aplicativo" (App logo)</strong> da Tela de Consentimento OAuth.
+            </p>
+            <div className="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-3">
+              <a
+                href="/app-icon-512.png"
+                download="assistente_de_gastos_logo_512x512.png"
+                className="h-9 px-4 text-xs font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-lg transition-colors inline-flex items-center gap-2 cursor-pointer shadow-xs active:scale-95"
+              >
+                <Download className="w-4 h-4" />
+                <span>Baixar Ícone (.PNG 512x512)</span>
+              </a>
+              <a
+                href="/app-icon-512.png"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-9 px-3.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg transition-colors inline-flex items-center gap-1.5"
+              >
+                <span>Abrir Imagem em Nova Guia</span>
+              </a>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -531,63 +591,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <li>Funciona 100% offline com persistência de dados local no IndexedDB.</li>
             <li>Sincronização com o Google Drive garantida para você acessar de qualquer aparelho.</li>
           </ul>
-        </div>
-      </div>
-
-      {/* Prontidão para Hospedagem no GitHub Pages */}
-      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl p-5 sm:p-6 transition-colors shadow-xs">
-        <div className="flex items-center gap-2.5 pb-4 border-b border-slate-200 dark:border-slate-800 mb-4">
-          <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-            <Globe className="w-4 h-4" />
-          </div>
-          <div>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white">
-              Hospedagem no GitHub Pages (100% Gratuito)
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Passo a passo para publicar seu app online no GitHub Pages sem custo algum.
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-4 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-          <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2">
-            <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 inline-flex items-center justify-center text-xs font-bold">1</span>
-              Como o GitHub Pages funciona com este App?
-            </h3>
-            <p>
-              O GitHub Pages é uma hospedagem <strong>estática</strong> (roda 100% no navegador do usuário). Toda a interface, os cálculos, a exportação de relatórios em PDF, o gerador de Excel (.xlsx) e o banco de dados (IndexedDB) funcionam nativamente sem precisar de servidor backend.
-            </p>
-          </div>
-
-          <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2">
-            <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 inline-flex items-center justify-center text-xs font-bold">2</span>
-              Chave da API Gemini (Apenas para o Scanner no GitHub Pages)
-            </h3>
-            <p>
-              Como o GitHub Pages não roda servidor Node.js para guardar segredos, você pode colocar sua própria chave gratuita do Google AI Studio diretamente aqui:
-            </p>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
-              <input
-                type="password"
-                placeholder="Cole sua GEMINI_API_KEY aqui (opcional)"
-                value={formData.geminiApiKey || ''}
-                onChange={(e) =>
-                  setFormData({ ...formData, geminiApiKey: e.target.value })
-                }
-                className="flex-1 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-emerald-500"
-              />
-              <button
-                type="button"
-                onClick={handleSaveSettings}
-                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-lg text-xs font-semibold cursor-pointer min-h-[38px]"
-              >
-                Salvar Chave
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>

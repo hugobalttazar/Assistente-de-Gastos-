@@ -12,6 +12,8 @@ import {
   Tag,
   CreditCard,
   FileCheck,
+  Key,
+  ExternalLink,
 } from 'lucide-react';
 import { CorporateExpense, ExpenseCategory, ReceiptFile } from '../types/expense';
 import { convertPdfFirstPageToImage } from '../utils/pdfToImage';
@@ -19,6 +21,7 @@ import {
   getStoredOpenRouterKey,
   scanReceiptWithOpenRouter,
   createOpenRouterAuthUrl,
+  saveOpenRouterKey,
 } from '../services/openRouterService';
 
 interface ReceiptScannerModalProps {
@@ -66,8 +69,10 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
-  const [tempApiKey, setTempApiKey] = useState('');
+  const [showOpenRouterModal, setShowOpenRouterModal] = useState(false);
+  const [manualOpenRouterKey, setManualOpenRouterKey] = useState('');
+  const [isConnectingOpenRouter, setIsConnectingOpenRouter] = useState(false);
+
   const handleFileChange = (file: File) => {
     setScanError(null);
     setConfidenceNote(null);
@@ -100,7 +105,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
         size: file.size,
       };
       setSelectedFile(receiptFile);
-      // Dispara automaticamente a leitura inteligente com a IA
+      // Dispara automaticamente a leitura inteligente com o OpenRouter
       triggerAiScan(receiptFile);
     };
     reader.onerror = () => {
@@ -116,173 +121,49 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
     }
   };
 
-  // Salva a chave da API do Gemini localmente e reexecuta o escaneamento
-  const handleSaveApiKeyAndRescan = () => {
-    if (!tempApiKey.trim()) return;
-    const rawSettings = localStorage.getItem('meu_assessor_company_settings');
-    const parsed = rawSettings ? JSON.parse(rawSettings) : {};
-    parsed.geminiApiKey = tempApiKey.trim();
-    localStorage.setItem('meu_assessor_company_settings', JSON.stringify(parsed));
-    setShowApiKeyModal(false);
+  const handleConnectOpenRouter = async () => {
+    try {
+      setIsConnectingOpenRouter(true);
+      const { url } = await createOpenRouterAuthUrl();
+      window.location.href = url;
+    } catch (err) {
+      console.error('Falha ao iniciar autenticação OpenRouter:', err);
+      setIsConnectingOpenRouter(false);
+    }
+  };
+
+  const handleSaveOpenRouterKeyAndRescan = () => {
+    if (!manualOpenRouterKey.trim()) return;
+    saveOpenRouterKey(manualOpenRouterKey.trim());
+    setShowOpenRouterModal(false);
     setScanError(null);
+    setManualOpenRouterKey('');
     if (selectedFile) {
       triggerAiScan(selectedFile);
     }
   };
 
-  // Chama o backend para extração via Gemini API
+  // Chama exclusivamente a IA gratuita do OpenRouter
   const triggerAiScan = async (fileToScan: ReceiptFile) => {
+    const openRouterKey = getStoredOpenRouterKey();
+    if (!openRouterKey) {
+      setShowOpenRouterModal(true);
+      setIsScanning(false);
+      setScanError(
+        'Para ativar a leitura inteligente automática, conecte sua conta gratuita do OpenRouter ou cole sua chave de API abaixo:'
+      );
+      return;
+    }
+
     setIsScanning(true);
     setScanError(null);
     setConfidenceNote(null);
 
     try {
-      let data: any = null;
-
-      // 1. Prioridade: Usa a conta OpenRouter conectada pelo usuário (IA Gratuita)
-      const openRouterKey = getStoredOpenRouterKey();
-      if (openRouterKey) {
-        try {
-          data = await scanReceiptWithOpenRouter(fileToScan.dataUrl, fileToScan.type);
-          if (data) {
-            setConfidenceNote('Lido com sucesso via IA Gratuita do OpenRouter!');
-          }
-        } catch (orErr) {
-          console.warn('OpenRouter retornou erro, tentando fallback:', orErr);
-        }
-      }
-
-      // 2. Se OpenRouter não estiver configurado ou falhou, tenta o endpoint backend local (/api/scan-receipt)
-      if (!data) {
-        try {
-          const response = await fetch('/api/scan-receipt', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              fileBase64: fileToScan.dataUrl,
-              mimeType: fileToScan.type,
-              filename: fileToScan.name,
-            }),
-          });
-
-          if (response.ok) {
-            const result = await response.json();
-            if (result.success && result.data) {
-              data = result.data;
-            }
-          }
-        } catch (backendErr) {
-          console.warn('Backend /api/scan-receipt não respondeu (ambiente estático/PWA/GitHub Pages):', backendErr);
-        }
-      }
-
-      // 2. Se backend falhou (ex: app instalado no PC ou GitHub Pages), usa chamada direta via cliente
-      if (!data) {
-        const rawSettings = localStorage.getItem('meu_assessor_company_settings');
-        const parsedSettings = rawSettings ? JSON.parse(rawSettings) : {};
-        const clientApiKey = parsedSettings.geminiApiKey;
-
-        if (clientApiKey && clientApiKey.trim()) {
-          const cleanBase64 = fileToScan.dataUrl.includes(',')
-            ? fileToScan.dataUrl.split(',')[1]
-            : fileToScan.dataUrl;
-
-          const promptText = `Você é um especialista contábil em prestação de contas de cartão corporativo no Brasil.
-Analise a imagem ou PDF deste recibo, nota fiscal (NFC-e, NF-e, SAT), fatura ou cupom fiscal.
-Extraia em JSON estrito:
-{
-  "date": "YYYY-MM-DD",
-  "amount": 0.00,
-  "merchant": "Nome do Estabelecimento",
-  "category": "Alimentação" ou "Transporte / Táxi / Uber" ou "Combustível" ou "Hospedagem" ou "Passagens" ou "Material de Escritório" ou "Software & Serviços" ou "Outros",
-  "description": "descrição concisa do que foi comprado",
-  "cnpj": "00.000.000/0000-00",
-  "paymentMethod": "Forma de pagamento",
-  "confidenceNotes": "observação de leitura"
-}`;
-
-          // Modelos modernos de alta disponibilidade, priorizando Flash Lite (imune a picos de alta demanda)
-          const modelsToTry = [
-            'gemini-flash-lite-latest',
-            'gemini-3.1-flash-lite',
-            'gemini-3.5-flash-lite',
-            'gemini-flash-latest',
-            'gemini-3.8-flash',
-          ];
-          let parsedResult: any = null;
-          let lastDirectError: any = null;
-
-          for (const modelToCall of modelsToTry) {
-            for (let attempt = 1; attempt <= 2; attempt++) {
-              try {
-                const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelToCall}:generateContent?key=${clientApiKey.trim()}`;
-                const resDirect = await fetch(geminiUrl, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    contents: [
-                      {
-                        parts: [
-                          {
-                            inlineData: {
-                              mimeType: fileToScan.type || 'image/jpeg',
-                              data: cleanBase64,
-                            },
-                          },
-                          { text: promptText },
-                        ],
-                      },
-                    ],
-                    generationConfig: {
-                      responseMimeType: 'application/json',
-                    },
-                  }),
-                });
-
-                if (resDirect.ok) {
-                  const directJson = await resDirect.json();
-                  const textResponse = directJson.candidates?.[0]?.content?.parts?.[0]?.text;
-                  if (textResponse) {
-                    const cleanedText = textResponse.replace(/^```json/i, '').replace(/```$/i, '').trim();
-                    const parsed = JSON.parse(cleanedText);
-                    parsedResult = Array.isArray(parsed) ? parsed[0] : parsed;
-                    break;
-                  }
-                } else {
-                  const errBody = await resDirect.json().catch(() => ({}));
-                  const errMsg = errBody.error?.message || `Erro ${resDirect.status}`;
-                  lastDirectError = new Error(errMsg);
-                  // Se for 503 (alta demanda temporária), aguarda 1.2s antes de tentar novamente
-                  if (resDirect.status === 503 || errMsg.includes('demand')) {
-                    await new Promise((r) => setTimeout(r, 1200));
-                  }
-                }
-              } catch (netErr: any) {
-                lastDirectError = netErr;
-              }
-            }
-            if (parsedResult) {
-              data = parsedResult;
-              break;
-            }
-          }
-
-          if (!data) {
-            throw lastDirectError || new Error('Não foi possível ler o comprovante com a chave do Gemini.');
-          }
-        } else {
-          // Solicita a chave diretamente no modal para o usuário não ficar perdido!
-          setShowApiKeyModal(true);
-          setIsScanning(false);
-          setScanError('Como este app está instalado no seu computador, informe sua chave gratuita do Gemini para ativar a leitura com IA:');
-          return;
-        }
-      }
+      const data = await scanReceiptWithOpenRouter(fileToScan.dataUrl, fileToScan.type);
 
       if (!data) {
-        throw new Error('Não foi possível extrair os dados do comprovante.');
+        throw new Error('Não foi possível extrair os dados do comprovante via OpenRouter.');
       }
 
       // Preenche os campos automaticamente com o que foi extraído
@@ -304,12 +185,23 @@ Extraia em JSON estrito:
         setPaymentMethod(defaultCardNumber);
       }
 
-      if (data.confidenceNotes) {
-        setConfidenceNote(data.confidenceNotes);
-      }
+      setConfidenceNote(
+        data.confidenceNotes || 'Lido com sucesso via IA do OpenRouter!'
+      );
     } catch (err: any) {
-      console.error('Erro na leitura com IA:', err);
-      setScanError(err.message || 'A leitura automática encontrou dificuldade, mas você pode preencher os campos manualmente abaixo.');
+      console.error('Erro na leitura via OpenRouter:', err);
+      const errMsg = err?.message || '';
+      if (
+        errMsg.includes('401') ||
+        errMsg.includes('Unauthorized') ||
+        errMsg.includes('Chave do OpenRouter')
+      ) {
+        setShowOpenRouterModal(true);
+      }
+      setScanError(
+        errMsg ||
+          'A leitura automática encontrou dificuldade, mas você pode preencher os campos manualmente abaixo.'
+      );
     } finally {
       setIsScanning(false);
     }
@@ -458,7 +350,7 @@ Extraia em JSON estrito:
                         </div>
                       </div>
                       <p className="text-sm font-semibold text-emerald-400 mb-1">
-                        Lendo Comprovante com Gemini IA...
+                        Lendo Comprovante com IA (OpenRouter)...
                       </p>
                       <p className="text-xs text-slate-400 max-w-xs">
                         Extraindo data, valor, fornecedor, itens e forma de pagamento
@@ -490,7 +382,7 @@ Extraia em JSON estrito:
                     className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 font-medium cursor-pointer disabled:opacity-50"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Reescanear com IA</span>
+                    <span>Reescanear com IA (OpenRouter)</span>
                   </button>
                   <span className="text-[11px] text-slate-500">
                     {(selectedFile.size / 1024).toFixed(0)} KB
@@ -516,43 +408,66 @@ Extraia em JSON estrito:
               </div>
             )}
 
-            {showApiKeyModal && (
+            {showOpenRouterModal && (
               <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-emerald-500/50 text-xs text-slate-700 dark:text-slate-200 space-y-3 shadow-lg">
                 <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-semibold">
                   <Sparkles className="w-4 h-4" />
-                  <span>Configurar Chave da IA (Gemini)</span>
+                  <span>Conectar IA do OpenRouter (100% Gratuito)</span>
                 </div>
                 <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
-                  No app instalado ou no GitHub Pages, informe sua chave gratuita do Google AI Studio para ativar a extração inteligente:
+                  A leitura inteligente de notas e recibos utiliza os modelos gratuitos de visão do OpenRouter (Gemini 2.0 Flash, Llama 3.2 Vision e Qwen 2.5). Conecte sua conta em 1 clique ou informe sua chave:
                 </p>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <input
-                    type="password"
-                    placeholder="Cole sua chave aqui (AIzaSy...)"
-                    value={tempApiKey}
-                    onChange={(e) => setTempApiKey(e.target.value)}
-                    className="flex-1 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-emerald-500"
-                  />
+
+                <div className="flex flex-col gap-2">
                   <button
                     type="button"
-                    onClick={handleSaveApiKeyAndRescan}
-                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs rounded-lg transition-colors cursor-pointer shrink-0"
+                    onClick={handleConnectOpenRouter}
+                    disabled={isConnectingOpenRouter}
+                    className="w-full py-2 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                   >
-                    Salvar & Ler
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>{isConnectingOpenRouter ? 'Conectando ao OpenRouter...' : 'Conectar OpenRouter em 1 Clique'}</span>
                   </button>
+
+                  <div className="flex items-center gap-2 my-1">
+                    <div className="flex-1 border-t border-slate-200 dark:border-slate-800" />
+                    <span className="text-[10px] uppercase font-semibold text-slate-400">ou cole a chave manual</span>
+                    <div className="flex-1 border-t border-slate-200 dark:border-slate-800" />
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="password"
+                      placeholder="sk-or-v1-..."
+                      value={manualOpenRouterKey}
+                      onChange={(e) => setManualOpenRouterKey(e.target.value)}
+                      className="flex-1 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-emerald-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveOpenRouterKeyAndRescan}
+                      disabled={!manualOpenRouterKey.trim()}
+                      className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-50 text-slate-800 dark:text-slate-200 font-semibold text-xs rounded-lg transition-colors cursor-pointer shrink-0"
+                    >
+                      Salvar & Ler
+                    </button>
+                  </div>
                 </div>
+
                 <div className="pt-1 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
                   <a
-                    href="https://aistudio.google.com/apikey"
+                    href="https://openrouter.ai/keys"
                     target="_blank"
                     rel="noreferrer"
                     className="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1"
                   >
-                    <span>→ Obter chave gratuita no Google AI Studio (30s)</span>
+                    <Key className="w-3 h-3" />
+                    <span>Criar chave gratuita em openrouter.ai/keys</span>
+                    <ExternalLink className="w-2.5 h-2.5" />
                   </a>
                   <button
                     type="button"
-                    onClick={() => setShowApiKeyModal(false)}
+                    onClick={() => setShowOpenRouterModal(false)}
                     className="text-[11px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-400 cursor-pointer"
                   >
                     Dispensar

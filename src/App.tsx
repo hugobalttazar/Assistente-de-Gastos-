@@ -657,7 +657,7 @@ export default function App() {
               )}
             </span>
             <span aria-hidden="true">·</span>
-            <span>Leitura Multimodal via Gemini IA</span>
+            <span>Leitura Multimodal via IA (OpenRouter)</span>
           </div>
         </div>
       </footer>
@@ -684,7 +684,7 @@ export default function App() {
         onClose={() => setIsInvoicesHistoryModalOpen(false)}
       />
 
-      {/* Modal de Digitalização & Extração com Gemini */}
+      {/* Modal de Digitalização & Extração com IA (OpenRouter) */}
       <ReceiptScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}

@@ -72,9 +72,11 @@ export interface AuthErrorInfo {
   message: string;
   isUnauthorizedDomain: boolean;
   isPopupBlocked: boolean;
+  isAccessDenied?: boolean;
   currentDomain: string;
   projectId: string;
   consoleSettingsUrl: string;
+  oauthConsentUrl?: string;
 }
 
 /**
@@ -85,6 +87,30 @@ export function parseAuthError(error: any): AuthErrorInfo {
   const currentDomain = typeof window !== 'undefined' ? window.location.hostname : '';
   const projectId = firebaseConfig.projectId || '';
   const consoleSettingsUrl = `https://console.firebase.google.com/project/${projectId}/authentication/settings`;
+  const oauthConsentUrl = `https://console.cloud.google.com/apis/credentials/consent?project=${projectId}`;
+
+  const rawMsg = (String(error?.message || '') + ' ' + String(error?.code || '')).toLowerCase();
+  const isAccessDenied =
+    code === 'auth/access-denied' ||
+    rawMsg.includes('access_denied') ||
+    rawMsg.includes('403') ||
+    rawMsg.includes('não concluiu o processo de verificação') ||
+    rawMsg.includes('fase de testes');
+
+  if (isAccessDenied) {
+    return {
+      code: 'auth/access-denied',
+      title: 'Aplicativo em Modo de Teste no Google',
+      message: 'O Google restringe o login enquanto o aplicativo estiver em Modo de Teste no Google Cloud. Para liberar o acesso de qualquer usuário, publique o app no Google Cloud Console ou adicione o e-mail na lista de Usuários de Teste.',
+      isUnauthorizedDomain: false,
+      isPopupBlocked: false,
+      isAccessDenied: true,
+      currentDomain,
+      projectId,
+      consoleSettingsUrl,
+      oauthConsentUrl,
+    };
+  }
 
   if (code === 'auth/unauthorized-domain') {
     return {
@@ -96,6 +122,7 @@ export function parseAuthError(error: any): AuthErrorInfo {
       currentDomain,
       projectId,
       consoleSettingsUrl,
+      oauthConsentUrl,
     };
   }
 
