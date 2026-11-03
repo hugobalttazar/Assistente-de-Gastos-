@@ -194,13 +194,16 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
       if (
         errMsg.includes('401') ||
         errMsg.includes('Unauthorized') ||
-        errMsg.includes('Chave do OpenRouter')
+        errMsg.includes('Chave do OpenRouter') ||
+        errMsg.includes('inválida') ||
+        errMsg.includes('expirada') ||
+        errMsg.includes('não encontrada')
       ) {
         setShowOpenRouterModal(true);
       }
       setScanError(
         errMsg ||
-          'A leitura automática encontrou dificuldade, mas você pode preencher os campos manualmente abaixo.'
+          'A leitura automática encontrou dificuldade no momento. Você pode clicar em Reconectar OpenRouter ou preencher os campos manualmente abaixo.'
       );
     } finally {
       setIsScanning(false);
@@ -402,9 +405,21 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
             )}
 
             {scanError && (
-              <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                <span>{scanError}</span>
+              <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 text-xs text-amber-700 dark:text-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">{scanError}</span>
+                </div>
+                {!showOpenRouterModal && (
+                  <button
+                    type="button"
+                    onClick={() => setShowOpenRouterModal(true)}
+                    className="px-2.5 py-1.5 text-[11px] font-semibold text-amber-900 dark:text-amber-100 bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/60 dark:hover:bg-amber-800/80 rounded-lg transition-colors cursor-pointer shrink-0 inline-flex items-center gap-1.5 self-start sm:self-auto shadow-2xs"
+                  >
+                    <Key className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    <span>Conectar / Trocar Chave</span>
+                  </button>
+                )}
               </div>
             )}
 

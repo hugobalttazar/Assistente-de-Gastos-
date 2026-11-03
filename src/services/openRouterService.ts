@@ -5,10 +5,64 @@ const OPENROUTER_VERIFIER_STORAGE = 'openrouter_pkce_verifier';
 
 // Modelos com suporte a visão e 100% gratuitos no OpenRouter
 export const FREE_VISION_MODELS = [
-  'google/gemini-2.0-flash-exp:free',
-  'meta-llama/llama-3.2-11b-vision-instruct:free',
-  'qwen/qwen-2.5-vl-72b-instruct:free',
+  'openrouter/free',
+  'nvidia/nemotron-3.5-super-vl:free',
+  'google/gemma-4-31b-it:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'dots-studio/dots-3-note-preview:free',
+  'thinkingmachines/inkling:free',
+  'thinkingmachines/inkling-small:free',
 ];
+
+let cachedActiveVisionModels: string[] | null = null;
+let lastModelFetch = 0;
+
+/**
+ * Consulta a API do OpenRouter em tempo real para obter os modelos gratuitos de visão ativos no momento
+ */
+export async function getActiveFreeVisionModels(): Promise<string[]> {
+  const now = Date.now();
+  if (cachedActiveVisionModels && now - lastModelFetch < 1000 * 60 * 30) {
+    return cachedActiveVisionModels;
+  }
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/models');
+    if (res.ok) {
+      const data = await res.json();
+      const freeVision = (data.data || [])
+        .filter((m: any) => {
+          const id = m.id || '';
+          const isFree = id.endsWith(':free') || id === 'openrouter/free';
+          const modality = m.architecture?.modality || '';
+          const desc = (m.description || '').toLowerCase();
+          const name = (m.name || '').toLowerCase();
+          const hasVision =
+            modality.includes('image') ||
+            modality.includes('multimodal') ||
+            desc.includes('vision') ||
+            name.includes('vision') ||
+            name.includes('vl');
+          return isFree && hasVision;
+        })
+        .map((m: any) => m.id);
+
+      if (freeVision.length > 0) {
+        // Garante que 'openrouter/free' e modelos mais robustos estejam priorizados no topo
+        const prioritized = [
+          'openrouter/free',
+          ...freeVision.filter((id: string) => id !== 'openrouter/free'),
+        ];
+        cachedActiveVisionModels = prioritized;
+        lastModelFetch = now;
+        return prioritized;
+      }
+    }
+  } catch (err) {
+    console.warn('Falha ao listar modelos dinâmicos do OpenRouter:', err);
+  }
+
+  return FREE_VISION_MODELS;
+}
 
 /**
  * Gera string aleatória segura para o code_verifier do PKCE
@@ -159,10 +213,11 @@ Extraia os seguintes campos com precisão cirúrgica e responda EXCLUSIVAMENTE e
 }
 Retorne apenas o objeto JSON puro, sem blocos markdown adicionais.`;
 
+  const modelsToTry = await getActiveFreeVisionModels();
   let lastError: any = null;
 
   // Tenta os modelos gratuitos em sequência caso algum esteja sobrecarregado
-  for (const model of FREE_VISION_MODELS) {
+  for (const model of modelsToTry) {
     try {
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -191,14 +246,44 @@ Retorne apenas o objeto JSON puro, sem blocos markdown adicionais.`;
               ],
             },
           ],
-          response_format: { type: 'json_object' },
         }),
       });
 
       if (!response.ok) {
         const errorBody = await response.text();
         console.warn(`Modelo OpenRouter ${model} retornou status ${response.status}:`, errorBody);
-        lastError = new Error(`OpenRouter (${model}): ${response.statusText}`);
+
+        let parsedMessage = '';
+        let errorCode: string | number = response.status;
+        try {
+          const errJson = JSON.parse(errorBody);
+          parsedMessage = errJson.error?.message || errJson.message || errorBody;
+          if (errJson.error?.code) {
+            errorCode = errJson.error.code;
+          }
+        } catch {
+          parsedMessage = errorBody;
+        }
+
+        // Se for erro de autenticação ou chave inválida
+        if (
+          response.status === 401 ||
+          String(errorCode) === '401' ||
+          parsedMessage.includes('User not found') ||
+          parsedMessage.includes('Invalid API key') ||
+          parsedMessage.includes('auth') ||
+          parsedMessage.includes('credentials')
+        ) {
+          throw new Error('Chave do OpenRouter inválida ou expirada. Reconecte sua conta do OpenRouter ou cole uma nova chave válida.');
+        }
+
+        // Se for limite temporário de requisições gratuitas
+        if (response.status === 429 || String(errorCode) === '429' || parsedMessage.toLowerCase().includes('rate limit')) {
+          lastError = new Error(`Limite temporário de requisições na IA (${model}). Aguarde alguns instantes.`);
+          continue;
+        }
+
+        lastError = new Error(`OpenRouter (${model}): ${parsedMessage || `Erro HTTP ${response.status}`}`);
         continue;
       }
 
@@ -208,15 +293,21 @@ Retorne apenas o objeto JSON puro, sem blocos markdown adicionais.`;
         continue;
       }
 
-      // Limpa possíveis marcações de markdown ```json ... ```
-      const cleanJsonString = content
-        .replace(/```json/gi, '')
-        .replace(/```/g, '')
-        .trim();
+      // Procura pelo primeiro bloco JSON {...} no texto
+      let jsonString = content.trim();
+      const match = jsonString.match(/\{[\s\S]*\}/);
+      if (match) {
+        jsonString = match[0];
+      } else {
+        jsonString = jsonString.replace(/```json/gi, '').replace(/```/g, '').trim();
+      }
 
-      const parsed: ScannedReceiptData = JSON.parse(cleanJsonString);
+      const parsed: ScannedReceiptData = JSON.parse(jsonString);
       return parsed;
-    } catch (err) {
+    } catch (err: any) {
+      if (err.message && err.message.includes('Chave do OpenRouter')) {
+        throw err;
+      }
       console.warn(`Tentativa com modelo OpenRouter ${model} falhou:`, err);
       lastError = err;
     }
