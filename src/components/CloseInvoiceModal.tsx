@@ -11,7 +11,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { CorporateExpense, InvoiceStatement } from '../types/expense';
-import { formatMonthName } from '../utils/storage';
+import { formatMonthName, getExpenseInvoiceMonth } from '../utils/storage';
 
 interface CloseInvoiceModalProps {
   isOpen: boolean;
@@ -33,7 +33,7 @@ export const CloseInvoiceModal: React.FC<CloseInvoiceModalProps> = ({
 
   if (!isOpen) return null;
 
-  const monthExpenses = expenses.filter((e) => e.date && e.date.startsWith(month));
+  const monthExpenses = expenses.filter((e) => getExpenseInvoiceMonth(e) === month);
   const totalAmount = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
   const receiptsCount = monthExpenses.filter((e) => e.receipt).length;
 

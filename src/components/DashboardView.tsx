@@ -21,6 +21,7 @@ import { User } from 'firebase/auth';
 import { CorporateExpense, InvoiceStatement } from '../types/expense';
 import { DriveSyncInfo } from '../services/googleDriveStorage';
 import { googleSignIn } from '../services/googleAuth';
+import { getExpenseInvoiceMonth } from '../utils/storage';
 
 interface DashboardViewProps {
   expenses: CorporateExpense[];
@@ -51,8 +52,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   syncInfo,
   onLoginSuccess,
 }) => {
-  // Filtra as despesas pelo mês selecionado
-  const monthExpenses = expenses.filter((e) => e.date.startsWith(selectedMonth));
+  // Filtra as despesas pela fatura/mês de competência selecionado
+  const monthExpenses = expenses.filter((e) => getExpenseInvoiceMonth(e) === selectedMonth);
 
   const totalAmount = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
   const totalCount = monthExpenses.length;

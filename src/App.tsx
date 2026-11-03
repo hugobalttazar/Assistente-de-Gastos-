@@ -11,6 +11,7 @@ import { LeadRegistrationModal } from './components/LeadRegistrationModal';
 import { AdminLeadsModal } from './components/AdminLeadsModal';
 import { CloseInvoiceModal } from './components/CloseInvoiceModal';
 import { InvoicesHistoryModal } from './components/InvoicesHistoryModal';
+import { EditExpenseModal } from './components/EditExpenseModal';
 import { CorporateExpense, CompanySettings, InvoiceStatement } from './types/expense';
 import {
   getStoredExpenses,
@@ -83,6 +84,7 @@ export default function App() {
   // Modais
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [viewingExpense, setViewingExpense] = useState<CorporateExpense | null>(null);
+  const [editingExpense, setEditingExpense] = useState<CorporateExpense | null>(null);
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [isAdminLeadsModalOpen, setIsAdminLeadsModalOpen] = useState(false);
 
@@ -101,6 +103,7 @@ export default function App() {
   const isUserInteractingWithModal =
     isScannerOpen ||
     !!viewingExpense ||
+    !!editingExpense ||
     isCloseInvoiceModalOpen ||
     isInvoicesHistoryModalOpen ||
     isLeadModalOpen ||
@@ -509,11 +512,15 @@ export default function App() {
     setExpenses(updatedExpenses);
     expensesRef.current = updatedExpenses;
 
-    if (withTimestamp.date && withTimestamp.date.length >= 7) {
-      setSelectedMonth(withTimestamp.date.substring(0, 7));
-    }
+    const targetMonth =
+      withTimestamp.invoiceId ||
+      (withTimestamp.date && withTimestamp.date.length >= 7
+        ? withTimestamp.date.substring(0, 7)
+        : selectedMonth);
+    setSelectedMonth(targetMonth);
 
     triggerDriveSync(updatedExpenses, invoicesRef.current, settingsRef.current);
+    flashNotification('Despesa salva com sucesso na fatura!');
   };
 
   // Atualizar despesa existente (grava localmente e no Google Drive)
@@ -530,7 +537,12 @@ export default function App() {
     setExpenses(updatedExpenses);
     expensesRef.current = updatedExpenses;
 
+    if (withTimestamp.invoiceId) {
+      setSelectedMonth(withTimestamp.invoiceId);
+    }
+
     triggerDriveSync(updatedExpenses, invoicesRef.current, settingsRef.current);
+    flashNotification('Despesa atualizada com sucesso!');
   };
 
   // Excluir despesa (remove localmente e atualiza Google Drive)
@@ -611,6 +623,7 @@ export default function App() {
                 onViewExpense={(exp) => setViewingExpense(exp)}
                 onUpdateExpense={handleUpdateExpense}
                 onDeleteExpense={handleDeleteExpense}
+                onOpenEditExpense={(exp) => setEditingExpense(exp)}
                 invoiceStatus={currentInvoice}
                 onRequestCloseInvoice={() => handleRequestCloseInvoice()}
                 onReopenInvoice={() => handleReopenInvoice()}
@@ -697,6 +710,16 @@ export default function App() {
       <ReceiptViewerModal
         expense={viewingExpense}
         onClose={() => setViewingExpense(null)}
+        onEditExpense={(exp) => setEditingExpense(exp)}
+      />
+
+      {/* Modal de Edição Completa da Despesa */}
+      <EditExpenseModal
+        isOpen={!!editingExpense}
+        expense={editingExpense}
+        onClose={() => setEditingExpense(null)}
+        onUpdateExpense={handleUpdateExpense}
+        currentSelectedMonth={selectedMonth}
       />
 
       {/* Modal de Cadastro de Lead & Consentimento de Termos */}

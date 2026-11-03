@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   X,
   Upload,
@@ -14,6 +14,9 @@ import {
   FileCheck,
   Key,
   ExternalLink,
+  Layers,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { CorporateExpense, ExpenseCategory, ReceiptFile } from '../types/expense';
 import { convertPdfFirstPageToImage } from '../utils/pdfToImage';
@@ -23,6 +26,11 @@ import {
   createOpenRouterAuthUrl,
   saveOpenRouterKey,
 } from '../services/openRouterService';
+import {
+  getCustomCategories,
+  saveCustomCategory,
+  formatMonthName,
+} from '../utils/storage';
 
 interface ReceiptScannerModalProps {
   isOpen: boolean;
@@ -32,17 +40,6 @@ interface ReceiptScannerModalProps {
   defaultCardNumber?: string;
 }
 
-const CATEGORIES: ExpenseCategory[] = [
-  'Alimentação',
-  'Transporte / Táxi / Uber',
-  'Combustível',
-  'Hospedagem',
-  'Passagens',
-  'Material de Escritório',
-  'Software & Serviços',
-  'Outros',
-];
-
 export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
   isOpen,
   onClose,
@@ -50,75 +47,171 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
   selectedMonth,
   defaultCardNumber = 'Visa Corporativo final 4022',
 }) => {
-  const [selectedFile, setSelectedFile] = useState<ReceiptFile | null>(null);
+  // Lista de arquivos/fotos anexadas
+  const [selectedFiles, setSelectedFiles] = useState<ReceiptFile[]>([]);
   const [isScanning, setIsScanning] = useState(false);
+  const [isProcessingFiles, setIsProcessingFiles] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [confidenceNote, setConfidenceNote] = useState<string | null>(null);
 
+  // Lista dinâmica de categorias (persiste categorias padrão + criadas pela IA ou usuário)
+  const [categoriesList, setCategoriesList] = useState<string[]>(() => getCustomCategories());
+  const [isCustomCategoryInputOpen, setIsCustomCategoryInputOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [detectedCategoryBadge, setDetectedCategoryBadge] = useState<string | null>(null);
+
   // Campos do formulário
   const today = new Date().toISOString().split('T')[0];
+  const [targetInvoiceMonth, setTargetInvoiceMonth] = useState<string>(
+    selectedMonth || today.substring(0, 7)
+  );
   const [date, setDate] = useState<string>(
     selectedMonth ? `${selectedMonth}-15` : today
   );
   const [amount, setAmount] = useState<string>('');
   const [merchant, setMerchant] = useState<string>('');
-  const [category, setCategory] = useState<ExpenseCategory>('Alimentação');
+  const [category, setCategory] = useState<string>('Alimentação');
   const [description, setDescription] = useState<string>('');
   const [cnpj, setCnpj] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<string>(defaultCardNumber);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const addMoreInputRef = useRef<HTMLInputElement>(null);
 
   const [showOpenRouterModal, setShowOpenRouterModal] = useState(false);
   const [manualOpenRouterKey, setManualOpenRouterKey] = useState('');
   const [isConnectingOpenRouter, setIsConnectingOpenRouter] = useState(false);
 
-  const handleFileChange = (file: File) => {
-    setScanError(null);
-    setConfidenceNote(null);
+  // Atualiza a fatura de destino quando selectedMonth mudar
+  useEffect(() => {
+    if (selectedMonth) {
+      setTargetInvoiceMonth(selectedMonth);
+    }
+  }, [selectedMonth]);
 
-    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  // Gerador de lista de faturas para o select (últimos 12 meses + próximos 3 meses)
+  const generateInvoiceMonthOptions = () => {
+    const options: { value: string; label: string }[] = [];
+    const now = new Date();
+    for (let i = 3; i >= -12; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      options.push({
+        value: val,
+        label: `Fatura ${formatMonthName(val)}`,
+      });
+    }
 
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      let dataUrl = e.target?.result as string;
+    if (targetInvoiceMonth && !options.some((o) => o.value === targetInvoiceMonth)) {
+      options.push({
+        value: targetInvoiceMonth,
+        label: `Fatura ${formatMonthName(targetInvoiceMonth)}`,
+      });
+    }
+
+    return options;
+  };
+
+  const processFileList = async (files: FileList | File[]): Promise<ReceiptFile[]> => {
+    const results: ReceiptFile[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      let dataUrl = base64;
       let effectiveType = file.type || (isPdf ? 'application/pdf' : 'image/jpeg');
 
-      // Converte a folha do PDF em imagem JPEG de alta resolução para exibição no relatório
+      // Se for PDF, converte a primeira folha para imagem de alta resolução
       if (isPdf) {
         try {
-          setIsScanning(true);
           const converted = await convertPdfFirstPageToImage(dataUrl);
           dataUrl = converted.dataUrl;
           effectiveType = 'image/jpeg';
         } catch (pdfErr) {
           console.warn('Falha na conversão de PDF para imagem:', pdfErr);
-        } finally {
-          setIsScanning(false);
         }
       }
 
-      const receiptFile: ReceiptFile = {
+      results.push({
         dataUrl,
         name: file.name,
         type: effectiveType,
         size: file.size,
-      };
-      setSelectedFile(receiptFile);
-      // Dispara automaticamente a leitura inteligente com o OpenRouter
-      triggerAiScan(receiptFile);
-    };
-    reader.onerror = () => {
-      setScanError('Não foi possível ler o arquivo selecionado.');
-    };
-    reader.readAsDataURL(file);
+      });
+    }
+
+    return results;
+  };
+
+  const handleInitialFilesSelected = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setScanError(null);
+    setConfidenceNote(null);
+    setIsProcessingFiles(true);
+
+    try {
+      const processed = await processFileList(files);
+      if (processed.length === 0) return;
+
+      setSelectedFiles(processed);
+
+      // Dispara automaticamente a leitura inteligente com o OpenRouter SOMENTE na 1ª foto
+      triggerAiScan(processed[0]);
+    } catch (err) {
+      console.error('Erro ao processar arquivos:', err);
+      setScanError('Não foi possível ler os arquivos selecionados.');
+    } finally {
+      setIsProcessingFiles(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleAddMoreFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setIsProcessingFiles(true);
+
+    try {
+      const processed = await processFileList(files);
+      setSelectedFiles((prev) => [...prev, ...processed]);
+    } catch (err) {
+      console.error('Erro ao adicionar arquivos adicionais:', err);
+      setScanError('Erro ao carregar fotos adicionais.');
+    } finally {
+      setIsProcessingFiles(false);
+      if (addMoreInputRef.current) addMoreInputRef.current.value = '';
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileChange(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      if (selectedFiles.length === 0) {
+        handleInitialFilesSelected(e.dataTransfer.files);
+      } else {
+        handleAddMoreFiles(e.dataTransfer.files);
+      }
     }
+  };
+
+  const handleRemovePhoto = (indexToRemove: number) => {
+    setSelectedFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  const handleSetPrimaryPhoto = (indexToPrimary: number) => {
+    if (indexToPrimary === 0) return;
+    setSelectedFiles((prev) => {
+      const copy = [...prev];
+      const [item] = copy.splice(indexToPrimary, 1);
+      return [item, ...copy];
+    });
   };
 
   const handleConnectOpenRouter = async () => {
@@ -138,12 +231,12 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
     setShowOpenRouterModal(false);
     setScanError(null);
     setManualOpenRouterKey('');
-    if (selectedFile) {
-      triggerAiScan(selectedFile);
+    if (selectedFiles.length > 0) {
+      triggerAiScan(selectedFiles[0]);
     }
   };
 
-  // Chama exclusivamente a IA gratuita do OpenRouter
+  // Chama exclusivamente a IA gratuita do OpenRouter na 1ª imagem
   const triggerAiScan = async (fileToScan: ReceiptFile) => {
     const openRouterKey = getStoredOpenRouterKey();
     if (!openRouterKey) {
@@ -172,12 +265,16 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
         setAmount(String(data.amount));
       }
       if (data.merchant) setMerchant(data.merchant);
-      if (data.category && CATEGORIES.includes(data.category as ExpenseCategory)) {
-        setCategory(data.category as ExpenseCategory);
+      if (data.category && typeof data.category === 'string') {
+        const rawCat = data.category.trim();
+        if (rawCat) {
+          const updated = saveCustomCategory(rawCat);
+          setCategoriesList(updated);
+          setCategory(rawCat);
+          setDetectedCategoryBadge(rawCat);
+        }
       }
-      if (data.description) {
-        setDescription(data.description);
-      }
+      if (data.description) setDescription(data.description);
       if (data.cnpj) setCnpj(data.cnpj);
       if (data.paymentMethod) {
         setPaymentMethod(data.paymentMethod);
@@ -186,7 +283,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
       }
 
       setConfidenceNote(
-        data.confidenceNotes || 'Lido com sucesso via IA do OpenRouter!'
+        data.confidenceNotes || '1ª foto lida com sucesso via IA do OpenRouter!'
       );
     } catch (err: any) {
       console.error('Erro na leitura via OpenRouter:', err);
@@ -224,16 +321,28 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
       return;
     }
 
+    if (!date) {
+      setScanError('Por favor, informe a data da transação.');
+      return;
+    }
+
+    if (!targetInvoiceMonth) {
+      setScanError('Por favor, selecione a fatura de destino.');
+      return;
+    }
+
     const newExpense: CorporateExpense = {
       id: `exp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       date: date || today,
+      invoiceId: targetInvoiceMonth,
       amount: numericAmount,
       merchant: merchant.trim(),
-      category,
+      category: category.trim() || 'Outros',
       description: description.trim() || `Despesa corporativa em ${merchant.trim()}`,
       cnpj: cnpj.trim() || undefined,
       paymentMethod: paymentMethod.trim() || defaultCardNumber,
-      receipt: selectedFile || undefined,
+      receipt: selectedFiles[0] || undefined,
+      receipts: selectedFiles.length > 0 ? selectedFiles : undefined,
       status: 'conferido',
       createdAt: new Date().toISOString(),
       notes: confidenceNote || undefined,
@@ -243,25 +352,46 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
     handleResetAndClose();
   };
 
+  const handleAddNewCategory = () => {
+    const trimmed = newCategoryName.trim();
+    if (!trimmed) return;
+    const updated = saveCustomCategory(trimmed);
+    setCategoriesList(updated);
+    setCategory(trimmed);
+    setDetectedCategoryBadge(null);
+    setNewCategoryName('');
+    setIsCustomCategoryInputOpen(false);
+  };
+
   const handleResetAndClose = () => {
-    setSelectedFile(null);
+    setSelectedFiles([]);
     setIsScanning(false);
+    setIsProcessingFiles(false);
     setScanError(null);
     setConfidenceNote(null);
+    setDetectedCategoryBadge(null);
+    setDate(selectedMonth ? `${selectedMonth}-15` : today);
+    setTargetInvoiceMonth(selectedMonth || today.substring(0, 7));
     setAmount('');
     setMerchant('');
+    setCategory('Alimentação');
     setDescription('');
     setCnpj('');
+    setPaymentMethod(defaultCardNumber);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (addMoreInputRef.current) addMoreInputRef.current.value = '';
     onClose();
   };
 
-  const isPdf = selectedFile?.type === 'application/pdf' || selectedFile?.name.endsWith('.pdf');
+  const primaryFile = selectedFiles[0] || null;
+  const isPrimaryPdf = primaryFile?.type === 'application/pdf' || primaryFile?.name.endsWith('.pdf');
+  const invoiceOptions = generateInvoiceMonthOptions();
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col transition-colors">
+      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-5xl shadow-2xl overflow-hidden my-auto max-h-[94vh] flex flex-col transition-colors">
         {/* Cabeçalho do Modal */}
         <div className="px-4 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/60">
           <div className="flex items-center gap-3">
@@ -273,7 +403,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                 Digitalizar Comprovante com IA
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Envie o recibo, cupom ou fatura para extração automática de dados
+                Envie 1 ou mais fotos/páginas do cupom para leitura automática e prestação de contas
               </p>
             </div>
           </div>
@@ -288,13 +418,37 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
 
         {/* Corpo do Modal em 2 Colunas */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-4 sm:p-6 overflow-y-auto flex-1">
-          {/* Coluna Esquerda: Upload e Prévia do Arquivo (5 colunas) */}
-          <div className="lg:col-span-5 flex flex-col gap-4">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-              Arquivo do Comprovante (Imagem ou PDF)
-            </label>
+          {/* Coluna Esquerda: Upload e Fotos Anexadas (5 colunas) */}
+          <div className="lg:col-span-5 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-emerald-500" />
+                Fotos do Comprovante ({selectedFiles.length})
+              </label>
 
-            {!selectedFile ? (
+              {selectedFiles.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => addMoreInputRef.current?.click()}
+                  disabled={isProcessingFiles || isScanning}
+                  className="px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors cursor-pointer flex items-center gap-1 border border-emerald-500/30"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Adicionar Foto</span>
+                </button>
+              )}
+
+              <input
+                ref={addMoreInputRef}
+                type="file"
+                multiple
+                accept="image/png,image/jpeg,image/webp,application/pdf"
+                className="hidden"
+                onChange={(e) => handleAddMoreFiles(e.target.files)}
+              />
+            </div>
+
+            {selectedFiles.length === 0 ? (
               <div
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
@@ -302,13 +456,10 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                 className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500/60 rounded-xl p-6 flex flex-col items-center justify-center text-center bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-900/80 transition-all cursor-pointer min-h-[260px] group"
               >
                 <input
-                  type="file"
                   ref={fileInputRef}
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      handleFileChange(e.target.files[0]);
-                    }
-                  }}
+                  type="file"
+                  multiple
+                  onChange={(e) => handleInitialFilesSelected(e.target.files)}
                   accept="image/png,image/jpeg,image/webp,application/pdf"
                   className="hidden"
                 />
@@ -316,83 +467,158 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                   <Upload className="w-6 h-6" />
                 </div>
                 <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1">
-                  Arraste o comprovante aqui
+                  Arraste os comprovantes aqui
                 </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-                  JPG, PNG, WebP ou PDF (até 50MB)
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                  Você pode selecionar mais de 1 foto (JPG, PNG ou PDF)
                 </p>
                 <span className="px-3 py-1 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs rounded-md border border-slate-200 dark:border-slate-700 font-medium">
-                  Ou selecione do dispositivo
+                  Selecionar do dispositivo
                 </span>
+                <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-3 max-w-[260px]">
+                  ✨ A IA fará a leitura da 1ª foto, e todas as fotos serão anexadas no relatório.
+                </p>
               </div>
             ) : (
-              <div className="relative border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-950 flex flex-col">
-                <div className="p-3 bg-white dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-700 dark:text-slate-300">
-                  <span className="truncate max-w-[200px] font-mono">
-                    {selectedFile.name}
-                  </span>
-                  <button
-                    onClick={() => {
-                      setSelectedFile(null);
-                      if (fileInputRef.current) fileInputRef.current.value = '';
-                    }}
-                    className="text-red-500 hover:text-red-600 dark:text-red-400 text-xs font-medium cursor-pointer"
-                  >
-                    Trocar arquivo
-                  </button>
+              <div className="space-y-3">
+                {/* Visualizador da 1ª Foto (Principal analisada pela IA) */}
+                <div className="relative border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-950 flex flex-col">
+                  <div className="p-2.5 bg-white dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-700 dark:text-slate-300">
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Foto 1 (Principal · Lida pela IA)
+                    </span>
+                    <button
+                      onClick={() => {
+                        setSelectedFiles([]);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}
+                      className="text-red-500 hover:text-red-600 dark:text-red-400 text-xs font-medium cursor-pointer"
+                    >
+                      Remover todas
+                    </button>
+                  </div>
+
+                  <div className="p-3 flex items-center justify-center min-h-[220px] max-h-[300px] overflow-hidden relative">
+                    {isScanning && (
+                      <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-xs flex flex-col items-center justify-center z-10 p-4 text-center">
+                        <div className="relative w-16 h-16 mb-3">
+                          <div className="absolute inset-0 rounded-full border-2 border-emerald-500/20 animate-ping" />
+                          <div className="w-16 h-16 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin flex items-center justify-center">
+                            <Sparkles className="w-6 h-6 text-emerald-400 animate-pulse" />
+                          </div>
+                        </div>
+                        <p className="text-sm font-semibold text-emerald-400 mb-1">
+                          Lendo 1ª Foto com IA (OpenRouter)...
+                        </p>
+                        <p className="text-xs text-slate-400 max-w-xs">
+                          Extraindo data, valor, fornecedor, itens e forma de pagamento
+                        </p>
+                      </div>
+                    )}
+
+                    {isPrimaryPdf && !primaryFile.dataUrl.startsWith('data:image/') ? (
+                      <div className="flex flex-col items-center justify-center text-center py-8">
+                        <FileText className="w-14 h-14 text-emerald-500 mb-2" />
+                        <span className="text-xs font-mono text-slate-600 dark:text-slate-300">
+                          {primaryFile.name}
+                        </span>
+                      </div>
+                    ) : (
+                      <img
+                        src={primaryFile.dataUrl}
+                        alt="Comprovante Principal"
+                        className="max-h-[280px] w-auto object-contain rounded shadow-xs"
+                      />
+                    )}
+                  </div>
+
+                  <div className="p-2.5 bg-white dark:bg-slate-900/60 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => triggerAiScan(primaryFile)}
+                      disabled={isScanning}
+                      className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 font-medium cursor-pointer disabled:opacity-50"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Reescanear 1ª foto com IA</span>
+                    </button>
+                    <span className="text-[11px] text-slate-500">
+                      {(primaryFile.size / 1024).toFixed(0)} KB
+                    </span>
+                  </div>
                 </div>
 
-                {/* Exibição da imagem ou ícone de PDF */}
-                <div className="p-4 flex items-center justify-center min-h-[240px] max-h-[340px] overflow-hidden relative">
-                  {isScanning && (
-                    <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-xs flex flex-col items-center justify-center z-10 p-4 text-center">
-                      <div className="relative w-16 h-16 mb-3">
-                        <div className="absolute inset-0 rounded-full border-2 border-emerald-500/20 animate-ping" />
-                        <div className="w-16 h-16 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin flex items-center justify-center">
-                          <Sparkles className="w-6 h-6 text-emerald-400 animate-pulse" />
-                        </div>
-                      </div>
-                      <p className="text-sm font-semibold text-emerald-400 mb-1">
-                        Lendo Comprovante com IA (OpenRouter)...
-                      </p>
-                      <p className="text-xs text-slate-400 max-w-xs">
-                        Extraindo data, valor, fornecedor, itens e forma de pagamento
-                      </p>
-                    </div>
-                  )}
-
-                  {isPdf && !selectedFile.dataUrl.startsWith('data:image/') ? (
-                    <div className="flex flex-col items-center justify-center text-center py-8">
-                      <FileText className="w-16 h-16 text-emerald-500 mb-2" />
-                      <span className="text-xs font-mono text-slate-600 dark:text-slate-300">
-                        Documento PDF Carregado
+                {/* Carrossel / Miniaturas de Todas as Fotos Anexadas */}
+                {selectedFiles.length > 1 && (
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">
+                        Todas as {selectedFiles.length} fotos anexadas:
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        Somente a 1ª é lida pela IA
                       </span>
                     </div>
-                  ) : (
-                    <img
-                      src={selectedFile.dataUrl}
-                      alt="Comprovante"
-                      className="max-h-[300px] w-auto object-contain rounded shadow-xs"
-                    />
-                  )}
-                </div>
 
-                <div className="p-3 bg-white dark:bg-slate-900/60 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => triggerAiScan(selectedFile)}
-                    disabled={isScanning}
-                    className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 font-medium cursor-pointer disabled:opacity-50"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Reescanear com IA (OpenRouter)</span>
-                  </button>
-                  <span className="text-[11px] text-slate-500">
-                    {(selectedFile.size / 1024).toFixed(0)} KB
-                  </span>
-                </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {selectedFiles.map((file, idx) => (
+                        <div
+                          key={`file-${idx}`}
+                          className={`relative rounded-lg overflow-hidden border ${
+                            idx === 0
+                              ? 'border-emerald-500 ring-2 ring-emerald-500/30'
+                              : 'border-slate-200 dark:border-slate-800'
+                          } bg-white dark:bg-slate-950 flex flex-col group`}
+                        >
+                          <div className="aspect-square flex items-center justify-center overflow-hidden bg-slate-100 dark:bg-slate-900">
+                            {file.dataUrl.startsWith('data:image/') ? (
+                              <img
+                                src={file.dataUrl}
+                                alt={file.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <FileText className="w-6 h-6 text-emerald-500" />
+                            )}
+                          </div>
+                          <div className="p-1 text-[10px] flex items-center justify-between bg-slate-50 dark:bg-slate-900">
+                            <span className="truncate font-semibold text-slate-700 dark:text-slate-300">
+                              {idx === 0 ? '1ª (IA)' : `${idx + 1}ª foto`}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              {idx !== 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetPrimaryPhoto(idx)}
+                                  className="text-[9px] text-emerald-600 hover:underline cursor-pointer"
+                                  title="Tornar esta a 1ª foto"
+                                >
+                                  Tornar 1ª
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePhoto(idx)}
+                                className="text-slate-400 hover:text-red-500 cursor-pointer"
+                                title="Remover esta foto"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
+
+            {/* Aviso explicativo amigável sobre múltiplas fotos */}
+            <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400">
+              📌 <strong>Fotos adicionais:</strong> Você pode anexar comprovante de maquininha, cupom fiscal e recibos adicionais. Todas as fotos serão salvas e constarão no relatório impresso / PDF.
+            </div>
 
             {confidenceNote && (
               <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 text-xs text-emerald-700 dark:text-emerald-300 flex items-start gap-2">
@@ -430,7 +656,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                   <span>Conectar IA do OpenRouter (100% Gratuito)</span>
                 </div>
                 <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
-                  A leitura inteligente de notas e recibos utiliza os modelos gratuitos de visão do OpenRouter (Gemini 2.0 Flash, Llama 3.2 Vision e Qwen 2.5). Conecte sua conta em 1 clique ou informe sua chave:
+                  A leitura inteligente de notas e recibos utiliza os modelos gratuitos de visão do OpenRouter. Conecte sua conta em 1 clique ou informe sua chave:
                 </p>
 
                 <div className="flex flex-col gap-2">
@@ -492,7 +718,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
             )}
           </div>
 
-          {/* Coluna Direita: Formulário de Revisão e Inserção da Descrição (7 colunas) */}
+          {/* Coluna Direita: Formulário de Revisão e Seleção de Fatura (7 colunas) */}
           <form onSubmit={handleSave} className="lg:col-span-7 flex flex-col gap-4">
             <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-slate-800">
               <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
@@ -501,6 +727,33 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
               <span className="text-[11px] text-slate-500">
                 Verifique e ajuste conforme necessário
               </span>
+            </div>
+
+            {/* SELETOR DE FATURA DE DESTINO / COMPETÊNCIA */}
+            <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/30">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-emerald-500" />
+                  Fatura / Mês de Destino *
+                </label>
+                <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  Competência do Cartão
+                </span>
+              </div>
+              <select
+                value={targetInvoiceMonth}
+                onChange={(e) => setTargetInvoiceMonth(e.target.value)}
+                className="w-full bg-white dark:bg-slate-900 border border-emerald-500/60 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-xs"
+              >
+                {invoiceOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                💡 <strong>Dica de conciliação:</strong> Mesmo que o cupom tenha data de novembro, você pode selecionar <em>Fatura Outubro</em> caso o ciclo do cartão corporativo ainda pertença a outubro.
+              </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -556,25 +809,82 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
 
               {/* Categoria */}
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1.5">
-                  <Tag className="w-3.5 h-3.5 text-slate-400" />
-                  Categoria Contábil *
-                </label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
-                >
-                  {CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-slate-400" />
+                    Categoria Contábil *
+                  </label>
+                  {detectedCategoryBadge && (
+                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                      IA definiu: {detectedCategoryBadge}
+                    </span>
+                  )}
+                </div>
+
+                {isCustomCategoryInputOpen ? (
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      placeholder="Nova categoria (ex: Pedágio, Estacionamento)"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddNewCategory();
+                        } else if (e.key === 'Escape') {
+                          setIsCustomCategoryInputOpen(false);
+                        }
+                      }}
+                      className="flex-1 bg-slate-50 dark:bg-slate-900 border border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddNewCategory}
+                      disabled={!newCategoryName.trim()}
+                      className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-lg transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                    >
+                      Salvar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCustomCategoryInputOpen(false);
+                        setNewCategoryName('');
+                      }}
+                      className="px-2 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-1.5">
+                    <select
+                      value={category}
+                      onChange={(e) => {
+                        if (e.target.value === '__NEW__') {
+                          setIsCustomCategoryInputOpen(true);
+                        } else {
+                          setCategory(e.target.value);
+                          setDetectedCategoryBadge(null);
+                        }
+                      }}
+                      className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+                    >
+                      {categoriesList.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                      <option value="__NEW__">+ Criar Nova Categoria...</option>
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Descrição / Justificativa Corporativa */}
+            {/* Justificativa / Descrição */}
             <div>
               <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1.5">
                 <FileCheck className="w-3.5 h-3.5 text-slate-400" />
@@ -588,13 +898,13 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                 onChange={(e) => setDescription(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 resize-none"
               />
-              <span className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-500 mt-1">
                 Esta descrição aparecerá diretamente no relatório mensal para prestação de contas.
-              </span>
+              </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Meio de Pagamento */}
+              {/* Forma de Pagamento */}
               <div>
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1.5">
                   <CreditCard className="w-3.5 h-3.5 text-slate-400" />
@@ -602,10 +912,10 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: Visa Corporativo final 4022"
+                  placeholder="Ex: Visa Corporativo Final 4022"
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-mono text-xs"
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
@@ -619,26 +929,27 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                   placeholder="00.000.000/0000-00"
                   value={cnpj}
                   onChange={(e) => setCnpj(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-mono text-xs"
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white font-mono focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
 
-            {/* Ações do Formulário */}
+            {/* Ações do Rodapé */}
             <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-3">
               <button
                 type="button"
                 onClick={handleResetAndClose}
-                className="px-4 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer min-h-[38px]"
+                className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 text-xs font-bold text-slate-950 bg-emerald-500 hover:bg-emerald-400 active:scale-95 transition-all rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer min-h-[38px]"
+                disabled={isScanning || isProcessingFiles}
+                className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-md disabled:opacity-50"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Salvar Despesa no Mês</span>
+                <span>Salvar Despesa na Fatura</span>
               </button>
             </div>
           </form>

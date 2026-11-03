@@ -16,7 +16,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { CorporateExpense, CompanySettings, InvoiceStatement } from '../types/expense';
-import { formatMonthName } from '../utils/storage';
+import { formatMonthName, getExpenseInvoiceMonth } from '../utils/storage';
 import { exportExpensesToPdf } from '../utils/pdfExport';
 import { exportExpensesToExcel } from '../utils/excelExport';
 
@@ -51,9 +51,7 @@ export const InvoicesHistoryModal: React.FC<InvoicesHistoryModalProps> = ({
   // Descobre meses únicos a partir das despesas cadastradas e une com as faturas salvas
   const monthsSet = new Set<string>();
   expenses.forEach((e) => {
-    if (e.date && e.date.length >= 7) {
-      monthsSet.add(e.date.substring(0, 7));
-    }
+    monthsSet.add(getExpenseInvoiceMonth(e));
   });
   invoices.forEach((inv) => monthsSet.add(inv.month));
 
@@ -62,7 +60,7 @@ export const InvoicesHistoryModal: React.FC<InvoicesHistoryModalProps> = ({
   // Consolida cada ciclo de mês com seu status real
   const consolidatedInvoices = allMonths.map((m) => {
     const existing = invoices.find((inv) => inv.month === m);
-    const monthExpenses = expenses.filter((e) => e.date && e.date.startsWith(m));
+    const monthExpenses = expenses.filter((e) => getExpenseInvoiceMonth(e) === m);
     const totalAmount = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
 
     if (existing) {
@@ -94,12 +92,12 @@ export const InvoicesHistoryModal: React.FC<InvoicesHistoryModalProps> = ({
   });
 
   const handleExportPdf = async (month: string) => {
-    const monthExpenses = expenses.filter((e) => e.date && e.date.startsWith(month));
+    const monthExpenses = expenses.filter((e) => getExpenseInvoiceMonth(e) === month);
     await exportExpensesToPdf(monthExpenses, settings, month);
   };
 
   const handleExportExcel = (month: string) => {
-    const monthExpenses = expenses.filter((e) => e.date && e.date.startsWith(month));
+    const monthExpenses = expenses.filter((e) => getExpenseInvoiceMonth(e) === month);
     exportExpensesToExcel(monthExpenses, settings, month);
   };
 

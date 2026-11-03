@@ -272,13 +272,36 @@ export async function exportExpensesToPdf(
 
   // --- ANEXO DOS COMPROVANTES (FOTOS / RECIBOS) ORDENADOS POR DATA ---
   if (includeReceipts) {
-    const expensesWithReceipts = sortedExpenses
-      .map((exp, index) => ({ exp, itemIndex: index + 1 }))
-      .filter((item) => item.exp.receipt && item.exp.receipt.dataUrl);
+    const vouchersToRender: {
+      exp: CorporateExpense;
+      receipt: any;
+      itemIndex: number;
+      photoIndex: number;
+      totalPhotos: number;
+    }[] = [];
 
-    for (let i = 0; i < expensesWithReceipts.length; i++) {
-      const { exp, itemIndex } = expensesWithReceipts[i];
-      if (!exp.receipt) continue;
+    sortedExpenses.forEach((exp, index) => {
+      const list =
+        exp.receipts && exp.receipts.length > 0
+          ? exp.receipts
+          : exp.receipt
+          ? [exp.receipt]
+          : [];
+      list.forEach((rec, photoIdx) => {
+        if (rec && rec.dataUrl) {
+          vouchersToRender.push({
+            exp,
+            receipt: rec,
+            itemIndex: index + 1,
+            photoIndex: photoIdx + 1,
+            totalPhotos: list.length,
+          });
+        }
+      });
+    });
+
+    for (let i = 0; i < vouchersToRender.length; i++) {
+      const { exp, receipt, itemIndex, photoIndex, totalPhotos } = vouchersToRender[i];
 
       doc.addPage();
 
@@ -287,13 +310,13 @@ export async function exportExpensesToPdf(
       doc.rect(margin, margin, contentWidth, 16, 'F');
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10.5);
+      doc.setFontSize(10);
       doc.setTextColor(255, 255, 255);
-      doc.text(
-        `COMPROVANTE ANEXO · ITEM #${itemIndex}: ${exp.merchant.toUpperCase()}`,
-        margin + 4,
-        margin + 7
-      );
+      const headerTitle =
+        totalPhotos > 1
+          ? `COMPROVANTE ANEXO · ITEM #${itemIndex} (FOTO ${photoIndex}/${totalPhotos}): ${exp.merchant.toUpperCase()}`
+          : `COMPROVANTE ANEXO · ITEM #${itemIndex}: ${exp.merchant.toUpperCase()}`;
+      doc.text(headerTitle, margin + 4, margin + 7);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
@@ -327,7 +350,7 @@ export async function exportExpensesToPdf(
       const maxImgHeight = pageHeight - imgY - margin - 8;
 
       try {
-        const prep = await prepareImageForPdf(exp.receipt.dataUrl);
+        const prep = await prepareImageForPdf(receipt.dataUrl);
         if (prep) {
           // Calcula aspect ratio para caber perfeito sem distorção
           const scale = Math.min(maxImgWidth / prep.width, maxImgHeight / prep.height);

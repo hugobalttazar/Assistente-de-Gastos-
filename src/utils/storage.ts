@@ -301,6 +301,17 @@ export function formatMonthName(monthStr: string): string {
   }
 }
 
+// Retorna a fatura/mês de competência à qual a despesa pertence (prioriza invoiceId se informado)
+export function getExpenseInvoiceMonth(expense: { invoiceId?: string; date?: string }): string {
+  if (expense.invoiceId && /^\d{4}-\d{2}$/.test(expense.invoiceId)) {
+    return expense.invoiceId;
+  }
+  if (expense.date && expense.date.length >= 7) {
+    return expense.date.substring(0, 7);
+  }
+  return new Date().toISOString().substring(0, 7);
+}
+
 // Fecha a fatura de um mês
 export function closeInvoice(
   month: string,
@@ -309,7 +320,7 @@ export function closeInvoice(
   closedBy?: string
 ): InvoiceStatement {
   const invoices = getStoredInvoices();
-  const monthExpenses = expenses.filter((e) => e.date && e.date.startsWith(month));
+  const monthExpenses = expenses.filter((e) => getExpenseInvoiceMonth(e) === month);
   const totalAmount = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
 
   const existingIndex = invoices.findIndex((inv) => inv.month === month);
@@ -354,4 +365,54 @@ export function reopenInvoice(month: string): InvoiceStatement | null {
   }
 
   return null;
+}
+
+const CATEGORIES_KEY = 'assistente_gastos_custom_categories_v1';
+
+export const DEFAULT_CATEGORIES: string[] = [
+  'Alimentação',
+  'Transporte / Táxi / Uber',
+  'Combustível',
+  'Pedágio',
+  'Estacionamento',
+  'Hospedagem',
+  'Passagens',
+  'Material de Escritório',
+  'Software & Serviços',
+  'Outros',
+];
+
+export function getCustomCategories(): string[] {
+  try {
+    const raw = localStorage.getItem(CATEGORIES_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const set = new Set([...DEFAULT_CATEGORIES, ...parsed]);
+        return Array.from(set);
+      }
+    }
+  } catch (e) {
+    console.warn('Erro ao ler categorias personalizadas:', e);
+  }
+  return [...DEFAULT_CATEGORIES];
+}
+
+export function saveCustomCategory(category: string): string[] {
+  const trimmed = category.trim();
+  if (!trimmed) return getCustomCategories();
+
+  const current = getCustomCategories();
+  const exists = current.some((c) => c.toLowerCase() === trimmed.toLowerCase());
+  if (exists) {
+    return current;
+  }
+
+  const updated = [...current, trimmed];
+  try {
+    localStorage.setItem(CATEGORIES_KEY, JSON.stringify(updated));
+  } catch (e) {
+    console.warn('Erro ao salvar nova categoria:', e);
+  }
+  return updated;
 }

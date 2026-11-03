@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Search,
   Filter,
@@ -18,7 +18,12 @@ import {
   Calendar,
 } from 'lucide-react';
 import { CorporateExpense, ExpenseCategory, InvoiceStatement } from '../types/expense';
-import { formatMonthName } from '../utils/storage';
+import {
+  formatMonthName,
+  DEFAULT_CATEGORIES,
+  getCustomCategories,
+  getExpenseInvoiceMonth,
+} from '../utils/storage';
 
 interface ExpenseTableViewProps {
   expenses: CorporateExpense[];
@@ -27,6 +32,7 @@ interface ExpenseTableViewProps {
   onViewExpense: (expense: CorporateExpense) => void;
   onUpdateExpense: (expense: CorporateExpense) => void;
   onDeleteExpense: (id: string) => void;
+  onOpenEditExpense?: (expense: CorporateExpense) => void;
   invoiceStatus: InvoiceStatement | null;
   onRequestCloseInvoice: () => void;
   onReopenInvoice: () => void;
@@ -40,6 +46,7 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
   onViewExpense,
   onUpdateExpense,
   onDeleteExpense,
+  onOpenEditExpense,
   invoiceStatus,
   onRequestCloseInvoice,
   onReopenInvoice,
@@ -61,10 +68,20 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
   // Estado para visualização de todos os meses
   const [showAllMonths, setShowAllMonths] = useState(false);
 
-  // Filtra por mês (ou todos)
+  // Categorias disponíveis dinamicamente (base + personalizadas criadas pela IA ou usuário)
+  const allAvailableCategories = useMemo(() => {
+    const set = new Set<string>(DEFAULT_CATEGORIES);
+    getCustomCategories().forEach((c) => set.add(c));
+    expenses.forEach((e) => {
+      if (e.category) set.add(e.category);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [expenses]);
+
+  // Filtra pela fatura/mês de competência (ou todos)
   const targetExpenses = showAllMonths
     ? expenses
-    : expenses.filter((e) => e.date.startsWith(selectedMonth));
+    : expenses.filter((e) => getExpenseInvoiceMonth(e) === selectedMonth);
 
   // Aplica filtros de texto e categoria
   const filteredExpenses = targetExpenses.filter((e) => {
@@ -151,14 +168,11 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
               className="bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-emerald-500 cursor-pointer w-full sm:w-auto"
             >
               <option value="all">Todas as Categorias</option>
-              <option value="Alimentação">Alimentação</option>
-              <option value="Transporte / Táxi / Uber">Transporte / Táxi / Uber</option>
-              <option value="Combustível">Combustível</option>
-              <option value="Hospedagem">Hospedagem</option>
-              <option value="Passagens">Passagens</option>
-              <option value="Material de Escritório">Material de Escritório</option>
-              <option value="Software & Serviços">Software & Serviços</option>
-              <option value="Outros">Outros</option>
+              {allAvailableCategories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -455,14 +469,26 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
                         {exp.receipt ? (
                           <button
                             onClick={() => onViewExpense(exp)}
-                            className="w-8 h-8 rounded-md bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-emerald-500 overflow-hidden inline-flex items-center justify-center cursor-pointer transition-all hover:scale-105"
-                            title="Ver comprovante original ampliado"
+                            className="relative w-8 h-8 rounded-md bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-emerald-500 overflow-hidden inline-flex items-center justify-center cursor-pointer transition-all hover:scale-105"
+                            title={
+                              exp.receipts && exp.receipts.length > 1
+                                ? `Ver ${exp.receipts.length} fotos do comprovante`
+                                : 'Ver comprovante original ampliado'
+                            }
                           >
                             <img
                               src={exp.receipt.dataUrl}
                               alt=""
                               className="w-full h-full object-cover"
                             />
+                            {exp.receipts && exp.receipts.length > 1 && (
+                              <span
+                                className="absolute bottom-0 right-0 bg-emerald-600 text-white text-[8px] font-bold px-1 rounded-tl-sm leading-tight"
+                                title={`${exp.receipts.length} fotos anexadas`}
+                              >
+                                {exp.receipts.length}
+                              </span>
+                            )}
                           </button>
                         ) : (
                           <span
@@ -475,8 +501,18 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
                       </td>
 
                       {/* Data */}
-                      <td className="py-3 px-2 font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap text-xs">
-                        {exp.date.split('-').reverse().join('/')}
+                      <td className="py-3 px-2 whitespace-nowrap text-xs">
+                        <span className="font-mono text-slate-700 dark:text-slate-300 block">
+                          {exp.date.split('-').reverse().join('/')}
+                        </span>
+                        {exp.invoiceId && exp.invoiceId !== exp.date.substring(0, 7) && (
+                          <span
+                            className="text-[10px] text-emerald-600 dark:text-emerald-400 font-sans font-semibold block"
+                            title={`Compra em ${exp.date}, alocada na fatura de ${formatMonthName(exp.invoiceId)}`}
+                          >
+                            ↳ {formatMonthName(exp.invoiceId)}
+                          </span>
+                        )}
                       </td>
 
                       {/* Fornecedor */}
@@ -583,9 +619,15 @@ export const ExpenseTableView: React.FC<ExpenseTableViewProps> = ({
                             </button>
                           )}
                           <button
-                            onClick={() => handleStartEdit(exp)}
-                            className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                            title="Editar Justificativa"
+                            onClick={() => {
+                              if (onOpenEditExpense) {
+                                onOpenEditExpense(exp);
+                              } else {
+                                handleStartEdit(exp);
+                              }
+                            }}
+                            className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors cursor-pointer"
+                            title="Editar Todas as Informações da Despesa"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>

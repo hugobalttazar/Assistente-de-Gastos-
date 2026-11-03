@@ -16,6 +16,7 @@ import { CorporateExpense, CompanySettings } from '../types/expense';
 import { exportExpensesToExcel } from '../utils/excelExport';
 import { exportExpensesToPdf } from '../utils/pdfExport';
 import { convertPdfFirstPageToImage } from '../utils/pdfToImage';
+import { getExpenseInvoiceMonth } from '../utils/storage';
 
 interface MonthlyReportViewProps {
   expenses: CorporateExpense[];
@@ -87,9 +88,9 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
   const [showAttachedReceipts, setShowAttachedReceipts] = useState(true);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-  // Filtra as despesas do mês selecionado e ordena cronologicamente pela data (da mais antiga para a mais recente)
+  // Filtra as despesas pela fatura/mês de competência selecionado e ordena cronologicamente
   const monthExpenses = expenses
-    .filter((e) => e.date.startsWith(selectedMonth))
+    .filter((e) => getExpenseInvoiceMonth(e) === selectedMonth)
     .sort((a, b) => a.date.localeCompare(b.date));
   const totalAmount = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
 
@@ -358,69 +359,97 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({
           </div>
         </div>
 
-        {/* Galeria de Comprovantes Anexados (Solicitado expressamente pelo usuário) */}
-        {showAttachedReceipts && (
-          <div className="mb-8 page-break-before">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-              <h2 className="text-xs uppercase font-bold text-slate-800 tracking-wider">
-                2. Comprovantes e Notas Fiscais Anexadas
-              </h2>
-              <span className="text-[11px] text-slate-500">
-                {monthExpenses.filter((e) => e.receipt).length} comprovantes
-                digitalizados
-              </span>
-            </div>
+        {/* Galeria de Comprovantes Anexados (Renderiza TODAS as fotos enviadas) */}
+        {showAttachedReceipts && (() => {
+          // Coleta todas as fotos de todas as despesas do mês
+          const allVoucherCards: {
+            exp: CorporateExpense;
+            receipt: any;
+            itemIndex: number;
+            photoIndex: number;
+            totalPhotos: number;
+          }[] = [];
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {monthExpenses.map((exp, index) => {
-                if (!exp.receipt) return null;
-                const isPdf =
-                  exp.receipt.type === 'application/pdf' ||
-                  exp.receipt.name.endsWith('.pdf');
+          monthExpenses.forEach((exp, expIdx) => {
+            const list =
+              exp.receipts && exp.receipts.length > 0
+                ? exp.receipts
+                : exp.receipt
+                ? [exp.receipt]
+                : [];
+            list.forEach((rec, photoIdx) => {
+              allVoucherCards.push({
+                exp,
+                receipt: rec,
+                itemIndex: expIdx + 1,
+                photoIndex: photoIdx + 1,
+                totalPhotos: list.length,
+              });
+            });
+          });
 
-                return (
-                  <div
-                    key={`voucher-${exp.id}`}
-                    className="border border-slate-200 rounded-lg p-4 bg-slate-50 break-inside-avoid flex flex-col justify-between"
-                  >
-                    <div>
-                      {/* Cabeçalho do Anexo */}
-                      <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-2">
-                        <span className="font-bold text-xs text-slate-900">
-                          Comprovante #{index + 1} · {exp.merchant}
-                        </span>
-                        <span className="text-xs font-mono font-bold text-emerald-700">
-                          R$ {exp.amount.toFixed(2).replace('.', ',')}
-                        </span>
+          return (
+            <div className="mb-8 page-break-before">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
+                <h2 className="text-xs uppercase font-bold text-slate-800 tracking-wider">
+                  2. Comprovantes e Notas Fiscais Anexadas
+                </h2>
+                <span className="text-[11px] text-slate-500">
+                  {allVoucherCards.length} fotos/comprovantes digitalizados
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {allVoucherCards.map(({ exp, receipt, itemIndex, photoIndex, totalPhotos }) => {
+                  return (
+                    <div
+                      key={`voucher-${exp.id}-${photoIndex}`}
+                      className="border border-slate-200 rounded-lg p-4 bg-slate-50 break-inside-avoid flex flex-col justify-between"
+                    >
+                      <div>
+                        {/* Cabeçalho do Anexo */}
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-2">
+                          <span className="font-bold text-xs text-slate-900">
+                            Item #{itemIndex} · {exp.merchant}
+                            {totalPhotos > 1 && (
+                              <span className="ml-1.5 text-[10px] font-normal text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                Foto {photoIndex} de {totalPhotos}
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-xs font-mono font-bold text-emerald-700">
+                            R$ {exp.amount.toFixed(2).replace('.', ',')}
+                          </span>
+                        </div>
+
+                        <div className="text-[11px] text-slate-600 mb-3 space-y-0.5">
+                          <p>
+                            <span className="font-semibold">Data:</span>{' '}
+                            {exp.date.split('-').reverse().join('/')} ·{' '}
+                            <span className="font-semibold">Categoria:</span>{' '}
+                            {exp.category}
+                          </p>
+                          <p className="italic text-slate-700">
+                            "{exp.description}"
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="text-[11px] text-slate-600 mb-3 space-y-0.5">
-                        <p>
-                          <span className="font-semibold">Data:</span>{' '}
-                          {exp.date.split('-').reverse().join('/')} ·{' '}
-                          <span className="font-semibold">Categoria:</span>{' '}
-                          {exp.category}
-                        </p>
-                        <p className="italic text-slate-700">
-                          "{exp.description}"
-                        </p>
+                      {/* Imagem do Comprovante */}
+                      <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-center min-h-[220px] max-h-[360px] overflow-hidden">
+                        <ReportVoucherImage
+                          receipt={receipt}
+                          merchant={exp.merchant}
+                          onClick={() => onViewExpense(exp)}
+                        />
                       </div>
                     </div>
-
-                    {/* Imagem do Comprovante */}
-                    <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-center min-h-[220px] max-h-[360px] overflow-hidden">
-                      <ReportVoucherImage
-                        receipt={exp.receipt}
-                        merchant={exp.merchant}
-                        onClick={() => onViewExpense(exp)}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Bloco de Assinaturas e Aprovação */}
         <div className="border-t-2 border-slate-300 pt-8 mt-12 grid grid-cols-2 gap-12 text-xs">

@@ -206,8 +206,8 @@ Extraia os seguintes campos com precisão cirúrgica e responda EXCLUSIVAMENTE e
   "amount": 0.00,
   "merchant": "Nome do Estabelecimento / Razão Social",
   "cnpj": "00.000.000/0000-00",
-  "category": "Alimentação | Transporte / Táxi / Uber | Combustível | Hospedagem | Passagens | Material de Escritório | Software & Serviços | Outros",
-  "description": "Descrição detalhada dos itens ou da despesa (ex: Almoço executivo 2 pessoas)",
+  "category": "Defina e classifique a categoria contábil com máxima precisão. Se for pedágio/concessionária rodoviária, classifique como 'Pedágio'. Se for estacionamento/garagem/valet, classifique como 'Estacionamento'. Caso seja outra despesa corporativa, use categorias comuns ('Alimentação', 'Transporte / Táxi / Uber', 'Combustível', 'Hospedagem', 'Passagens', 'Material de Escritório', 'Software & Serviços') OU crie um nome de categoria novo, específico e conciso condizente com o comprovante (ex: 'Pedágio', 'Estacionamento', 'Manutenção Veicular', 'Farmácia / Saúde', etc.)",
+  "description": "Descrição detalhada dos itens ou da despesa (ex: Tarifa de pedágio rodoviário ou Almoço executivo 2 pessoas)",
   "paymentMethod": "Forma de pagamento indicada (ex: Cartão de Crédito Visa)",
   "confidenceNotes": "Observações sobre a legibilidade do comprovante"
 }

@@ -27,10 +27,11 @@ export interface CorporateExpense {
   cnpj?: string;
   paymentMethod: string;
   receipt?: ReceiptFile;
+  receipts?: ReceiptFile[]; // Lista completa de comprovantes/fotos anexadas
   status: 'conferido' | 'pendente';
   createdAt: string;
   updatedAt?: string;
-  invoiceId?: string; // Vincula a despesa ao ciclo da fatura
+  invoiceId?: string; // Vincula a despesa ao ciclo da fatura (mês de competência YYYY-MM)
 }
 
 export interface CompanySettings {
