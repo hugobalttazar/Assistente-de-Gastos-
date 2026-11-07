@@ -25,6 +25,7 @@ import {
 } from '../utils/storage';
 import { convertPdfFirstPageToImage } from '../utils/pdfToImage';
 import { DuplicateExpenseAlertModal } from './DuplicateExpenseAlertModal';
+import { findDuplicateExpense } from '../utils/duplicateDetector';
 
 interface EditExpenseModalProps {
   isOpen: boolean;
@@ -236,13 +237,7 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
     };
 
     // Verificação de duplicação: compara com outras despesas excluindo a que está sendo editada
-    const conflict = existingExpenses.find((e) => {
-      if (e.id === expense.id) return false;
-      const sameMerchant = e.merchant.trim().toLowerCase() === updated.merchant.toLowerCase();
-      const sameDate = e.date === updated.date;
-      const sameAmount = Math.abs(e.amount - updated.amount) < 0.01;
-      return sameMerchant && sameDate && sameAmount;
-    });
+    const conflict = findDuplicateExpense(updated, existingExpenses);
 
     if (conflict) {
       setDuplicateConflict({ existing: conflict, pending: updated });

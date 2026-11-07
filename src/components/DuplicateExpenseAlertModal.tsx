@@ -30,7 +30,7 @@ export const DuplicateExpenseAlertModal: React.FC<DuplicateExpenseAlertModalProp
   if (!isOpen || !existingExpense || !pendingExpense) return null;
 
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-white dark:bg-[#111827] border border-amber-500/40 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col transition-colors">
         {/* Cabeçalho do Alerta */}
         <div className="p-4 sm:p-5 bg-amber-500/10 border-b border-amber-500/20 flex items-start justify-between gap-3">

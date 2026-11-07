@@ -30,8 +30,10 @@ import {
   getCustomCategories,
   saveCustomCategory,
   formatMonthName,
+  getStoredExpenses,
 } from '../utils/storage';
 import { DuplicateExpenseAlertModal } from './DuplicateExpenseAlertModal';
+import { findDuplicateExpense } from '../utils/duplicateDetector';
 
 interface ReceiptScannerModalProps {
   isOpen: boolean;
@@ -349,10 +351,19 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const numericAmount = parseFloat(amount.replace(',', '.'));
+    const cleanAmountStr = String(amount).replace(/[^\d.,]/g, '').trim();
+    let numericAmount = 0;
+    if (cleanAmountStr.includes(',') && cleanAmountStr.includes('.')) {
+      numericAmount = parseFloat(cleanAmountStr.replace(/\./g, '').replace(',', '.'));
+    } else if (cleanAmountStr.includes(',')) {
+      numericAmount = parseFloat(cleanAmountStr.replace(',', '.'));
+    } else {
+      numericAmount = parseFloat(cleanAmountStr);
+    }
+
     if (isNaN(numericAmount) || numericAmount <= 0) {
       setScanError('Por favor, informe um valor monetário válido.');
       return;
@@ -390,13 +401,22 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
       notes: confidenceNote || undefined,
     };
 
-    // Verificação de duplicação: compara Estabelecimento, Valor e Data
-    const conflict = existingExpenses.find((e) => {
-      const sameMerchant = e.merchant.trim().toLowerCase() === newExpense.merchant.toLowerCase();
-      const sameDate = e.date === newExpense.date;
-      const sameAmount = Math.abs(e.amount - newExpense.amount) < 0.01;
-      return sameMerchant && sameDate && sameAmount;
-    });
+    // 1. Obtém lista combinada de despesas para verificação (prop + cache local atualizado)
+    let candidateExpenses: CorporateExpense[] = [...existingExpenses];
+    try {
+      const stored = await getStoredExpenses();
+      if (stored && stored.length > 0) {
+        const idMap = new Map<string, CorporateExpense>();
+        for (const item of candidateExpenses) idMap.set(item.id, item);
+        for (const item of stored) idMap.set(item.id, item);
+        candidateExpenses = Array.from(idMap.values());
+      }
+    } catch {
+      // ignore
+    }
+
+    // 2. Verificação de duplicação inteligente: compara Estabelecimento (fuzzy), Valor e Data
+    const conflict = findDuplicateExpense(newExpense, candidateExpenses);
 
     if (conflict) {
       setDuplicateConflict({ existing: conflict, pending: newExpense });
