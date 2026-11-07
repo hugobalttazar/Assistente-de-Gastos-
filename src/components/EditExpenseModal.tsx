@@ -24,6 +24,7 @@ import {
   getExpenseInvoiceMonth,
 } from '../utils/storage';
 import { convertPdfFirstPageToImage } from '../utils/pdfToImage';
+import { DuplicateExpenseAlertModal } from './DuplicateExpenseAlertModal';
 
 interface EditExpenseModalProps {
   isOpen: boolean;
@@ -31,6 +32,7 @@ interface EditExpenseModalProps {
   expense: CorporateExpense | null;
   onUpdateExpense: (expense: CorporateExpense) => void;
   currentSelectedMonth?: string;
+  existingExpenses?: CorporateExpense[];
 }
 
 export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
@@ -39,6 +41,7 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
   expense,
   onUpdateExpense,
   currentSelectedMonth,
+  existingExpenses = [],
 }) => {
   const [date, setDate] = useState('');
   const [targetInvoiceMonth, setTargetInvoiceMonth] = useState('');
@@ -59,6 +62,7 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
   // Erro / Validação
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [duplicateConflict, setDuplicateConflict] = useState<{ existing: CorporateExpense; pending: CorporateExpense } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -231,7 +235,28 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
       updatedAt: new Date().toISOString(),
     };
 
+    // Verificação de duplicação: compara com outras despesas excluindo a que está sendo editada
+    const conflict = existingExpenses.find((e) => {
+      if (e.id === expense.id) return false;
+      const sameMerchant = e.merchant.trim().toLowerCase() === updated.merchant.toLowerCase();
+      const sameDate = e.date === updated.date;
+      const sameAmount = Math.abs(e.amount - updated.amount) < 0.01;
+      return sameMerchant && sameDate && sameAmount;
+    });
+
+    if (conflict) {
+      setDuplicateConflict({ existing: conflict, pending: updated });
+      return;
+    }
+
     onUpdateExpense(updated);
+    onClose();
+  };
+
+  const handleConfirmDuplicateSave = () => {
+    if (!duplicateConflict) return;
+    onUpdateExpense(duplicateConflict.pending);
+    setDuplicateConflict(null);
     onClose();
   };
 
@@ -629,6 +654,15 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* Modal de Alerta de Comprovante Duplicado */}
+      <DuplicateExpenseAlertModal
+        isOpen={!!duplicateConflict}
+        existingExpense={duplicateConflict?.existing || null}
+        pendingExpense={duplicateConflict?.pending || null}
+        onCancel={() => setDuplicateConflict(null)}
+        onConfirmSave={handleConfirmDuplicateSave}
+      />
     </div>
   );
 };

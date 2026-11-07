@@ -1,4 +1,5 @@
 import { ScannedReceiptData } from '../types/expense';
+import { getCompanySettings, saveCompanySettings } from '../utils/storage';
 
 const OPENROUTER_KEY_STORAGE = 'assistente_openrouter_api_key';
 const OPENROUTER_VERIFIER_STORAGE = 'openrouter_pkce_verifier';
@@ -161,25 +162,82 @@ export async function exchangeCodeForApiKey(code: string): Promise<string> {
 }
 
 /**
- * Salva a chave de API do OpenRouter no armazenamento local
+ * Salva a chave de API do OpenRouter no armazenamento local e nas configurações corporativas,
+ * disparando evento para atualização reativa em tempo real de toda a interface.
  */
-export function saveOpenRouterKey(key: string): void {
-  localStorage.setItem(OPENROUTER_KEY_STORAGE, key.trim());
+export function saveOpenRouterKey(key: string, syncSettings: boolean = true): void {
+  const cleanKey = key.trim();
+  if (!cleanKey) return;
+
+  localStorage.setItem(OPENROUTER_KEY_STORAGE, cleanKey);
+
+  if (syncSettings) {
+    try {
+      const currentSettings = getCompanySettings();
+      if (currentSettings.openRouterApiKey !== cleanKey) {
+        saveCompanySettings({
+          ...currentSettings,
+          openRouterApiKey: cleanKey,
+        });
+      }
+    } catch (e) {
+      console.warn('Erro ao sincronizar chave do OpenRouter com as configurações:', e);
+    }
+  }
+
+  // Notifica todos os componentes e abas
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('openrouter-auth-changed', { detail: { key: cleanKey } }));
+  }
 }
 
 /**
- * Recupera a chave de API do OpenRouter salva
+ * Recupera a chave de API do OpenRouter salva.
+ * Se não estiver no localStorage, verifica nas configurações corporativas (sincronizadas da nuvem/Google Drive)
+ * e restaura no cache local automaticamente para que o usuário precise conectar apenas 1 vez na vida.
  */
 export function getStoredOpenRouterKey(): string | null {
-  return localStorage.getItem(OPENROUTER_KEY_STORAGE) || null;
+  const localKey = localStorage.getItem(OPENROUTER_KEY_STORAGE);
+  if (localKey && localKey.trim()) {
+    return localKey.trim();
+  }
+
+  // Fallback para as configurações corporativas salvas na nuvem / Drive
+  try {
+    const settings = getCompanySettings();
+    if (settings.openRouterApiKey && settings.openRouterApiKey.trim()) {
+      const keyFromSettings = settings.openRouterApiKey.trim();
+      localStorage.setItem(OPENROUTER_KEY_STORAGE, keyFromSettings);
+      return keyFromSettings;
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  return null;
 }
 
 /**
- * Remove a chave do OpenRouter
+ * Remove a chave do OpenRouter do cache local e das configurações
  */
 export function removeOpenRouterKey(): void {
   localStorage.removeItem(OPENROUTER_KEY_STORAGE);
   localStorage.removeItem(OPENROUTER_VERIFIER_STORAGE);
+
+  try {
+    const currentSettings = getCompanySettings();
+    if (currentSettings.openRouterApiKey) {
+      const updated = { ...currentSettings };
+      delete updated.openRouterApiKey;
+      saveCompanySettings(updated);
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('openrouter-auth-changed', { detail: { key: null } }));
+  }
 }
 
 /**

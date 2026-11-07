@@ -84,11 +84,12 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             {/* Zona 2: Cápsula Centralizada de Navegação (Plano 1 - Perfeitamente ancorada ao Centro Matemático) */}
-            <div className="hidden lg:flex items-center justify-center absolute left-1/2 -translate-x-1/2 pointer-events-none">
-              <nav
-                aria-label="Navegação Central"
-                className="pointer-events-auto bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 p-1 rounded-xl shadow-xs backdrop-blur-md flex items-center gap-1"
-              >
+            {user && (
+              <div className="hidden lg:flex items-center justify-center absolute left-1/2 -translate-x-1/2 pointer-events-none">
+                <nav
+                  aria-label="Navegação Central"
+                  className="pointer-events-auto bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 p-1 rounded-xl shadow-xs backdrop-blur-md flex items-center gap-1"
+                >
                 <button
                   onClick={() => onSelectTab('dashboard')}
                   className={`h-8 px-3 rounded-lg transition-all whitespace-nowrap flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
@@ -143,20 +144,23 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
               </nav>
             </div>
+          )}
 
             {/* Zona 3: Ações e Ferramentas Rigorosamente no Esquadro à Direita */}
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               {/* Seletor de Competência (Desktop) */}
-              <div className="hidden md:flex items-center h-9 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 text-xs text-slate-700 dark:text-slate-300 shrink-0 shadow-2xs">
-                <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0 mr-1.5" />
-                <input
-                  type="month"
-                  value={selectedMonth}
-                  onChange={(e) => onMonthChange(e.target.value)}
-                  className="bg-transparent text-slate-800 dark:text-slate-200 text-xs font-mono focus:outline-none cursor-pointer"
-                  title="Mês de competência"
-                />
-              </div>
+              {user && (
+                <div className="hidden md:flex items-center h-9 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 text-xs text-slate-700 dark:text-slate-300 shrink-0 shadow-2xs">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0 mr-1.5" />
+                  <input
+                    type="month"
+                    value={selectedMonth}
+                    onChange={(e) => onMonthChange(e.target.value)}
+                    className="bg-transparent text-slate-800 dark:text-slate-200 text-xs font-mono focus:outline-none cursor-pointer"
+                    title="Mês de competência"
+                  />
+                </div>
+              )}
 
               {/* Botão de Alternância de Tema Claro / Escuro */}
               <button
@@ -174,19 +178,21 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
 
               {/* Ação Primária: Escanear Comprovante (visível em tablet/desktop; no mobile utiliza-se o botão central da Bottom Navigation) */}
-              <button
-                onClick={onOpenScanner}
-                disabled={invoiceStatus?.status === 'fechada'}
-                className="hidden sm:flex h-9 items-center justify-center gap-1.5 px-3.5 text-xs font-bold text-slate-950 bg-emerald-500 hover:bg-emerald-400 active:scale-95 transition-all rounded-lg shadow-xs whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                title={
-                  invoiceStatus?.status === 'fechada'
-                    ? 'Fatura fechada. Reabra a fatura para adicionar novos comprovantes.'
-                    : 'Escanear novo comprovante com IA'
-                }
-              >
-                <Plus className="w-4 h-4 stroke-[3]" />
-                <span>Escanear</span>
-              </button>
+              {user && (
+                <button
+                  onClick={onOpenScanner}
+                  disabled={invoiceStatus?.status === 'fechada'}
+                  className="hidden sm:flex h-9 items-center justify-center gap-1.5 px-3.5 text-xs font-bold text-slate-950 bg-emerald-500 hover:bg-emerald-400 active:scale-95 transition-all rounded-lg shadow-xs whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={
+                    invoiceStatus?.status === 'fechada'
+                      ? 'Fatura fechada. Reabra a fatura para adicionar novos comprovantes.'
+                      : 'Escanear novo comprovante com IA'
+                  }
+                >
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  <span>Escanear</span>
+                </button>
+              )}
 
               {/* Menu do Usuário & Conexão Google Drive em Esquadro Perfeito */}
               <GoogleDriveUserMenu
@@ -252,10 +258,11 @@ export const Header: React.FC<HeaderProps> = ({
       </header>
 
       {/* Barra de Navegação Inferior Dedicada para Smartphones (Mobile Bottom Navigation) */}
-      <nav
-        aria-label="Navegação Principal Mobile"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#0B0F17]/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-2 py-1 flex items-center justify-around shadow-lg transition-colors"
-      >
+      {user && (
+        <nav
+          aria-label="Navegação Principal Mobile"
+          className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#0B0F17]/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-2 py-1 flex items-center justify-around shadow-lg transition-colors"
+        >
         <button
           onClick={() => onSelectTab('dashboard')}
           className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-lg min-w-[56px] min-h-[48px] transition-colors cursor-pointer ${
@@ -315,6 +322,7 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="text-[10px] leading-tight">Ajustes</span>
         </button>
       </nav>
-    </>
-  );
+    )}
+  </>
+);
 };

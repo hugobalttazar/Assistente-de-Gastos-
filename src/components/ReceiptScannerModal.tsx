@@ -31,6 +31,7 @@ import {
   saveCustomCategory,
   formatMonthName,
 } from '../utils/storage';
+import { DuplicateExpenseAlertModal } from './DuplicateExpenseAlertModal';
 
 interface ReceiptScannerModalProps {
   isOpen: boolean;
@@ -38,6 +39,7 @@ interface ReceiptScannerModalProps {
   onSaveExpense: (expense: CorporateExpense) => void;
   selectedMonth: string; // YYYY-MM
   defaultCardNumber?: string;
+  existingExpenses?: CorporateExpense[];
 }
 
 export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
@@ -46,6 +48,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
   onSaveExpense,
   selectedMonth,
   defaultCardNumber = 'Visa Corporativo final 4022',
+  existingExpenses = [],
 }) => {
   // Lista de arquivos/fotos anexadas
   const [selectedFiles, setSelectedFiles] = useState<ReceiptFile[]>([]);
@@ -53,6 +56,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
   const [isProcessingFiles, setIsProcessingFiles] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [confidenceNote, setConfidenceNote] = useState<string | null>(null);
+  const [duplicateConflict, setDuplicateConflict] = useState<{ existing: CorporateExpense; pending: CorporateExpense } | null>(null);
 
   // Lista dinâmica de categorias (persiste categorias padrão + criadas pela IA ou usuário)
   const [categoriesList, setCategoriesList] = useState<string[]>(() => getCustomCategories());
@@ -214,11 +218,49 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
     });
   };
 
+  // Escuta autenticação do OpenRouter em tempo real para fechar modal e disparar o scan
+  useEffect(() => {
+    const handleAuthChange = () => {
+      const key = getStoredOpenRouterKey();
+      if (key) {
+        setShowOpenRouterModal(false);
+        setScanError(null);
+        if (selectedFiles.length > 0 && !isScanning) {
+          triggerAiScan(selectedFiles[0]);
+        }
+      }
+    };
+    window.addEventListener('openrouter-auth-changed', handleAuthChange);
+    return () => window.removeEventListener('openrouter-auth-changed', handleAuthChange);
+  }, [selectedFiles, isScanning]);
+
   const handleConnectOpenRouter = async () => {
     try {
       setIsConnectingOpenRouter(true);
       const { url } = await createOpenRouterAuthUrl();
-      window.location.href = url;
+      const popup = window.open(
+        url,
+        'openrouter_auth',
+        'width=650,height=750,menubar=no,toolbar=no,location=no'
+      );
+      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+        window.location.href = url;
+      } else {
+        const timer = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(timer);
+            setIsConnectingOpenRouter(false);
+            const key = getStoredOpenRouterKey();
+            if (key) {
+              setShowOpenRouterModal(false);
+              setScanError(null);
+              if (selectedFiles.length > 0 && !isScanning) {
+                triggerAiScan(selectedFiles[0]);
+              }
+            }
+          }
+        }, 1000);
+      }
     } catch (err) {
       console.error('Falha ao iniciar autenticação OpenRouter:', err);
       setIsConnectingOpenRouter(false);
@@ -348,7 +390,27 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
       notes: confidenceNote || undefined,
     };
 
+    // Verificação de duplicação: compara Estabelecimento, Valor e Data
+    const conflict = existingExpenses.find((e) => {
+      const sameMerchant = e.merchant.trim().toLowerCase() === newExpense.merchant.toLowerCase();
+      const sameDate = e.date === newExpense.date;
+      const sameAmount = Math.abs(e.amount - newExpense.amount) < 0.01;
+      return sameMerchant && sameDate && sameAmount;
+    });
+
+    if (conflict) {
+      setDuplicateConflict({ existing: conflict, pending: newExpense });
+      return;
+    }
+
     onSaveExpense(newExpense);
+    handleResetAndClose();
+  };
+
+  const handleConfirmDuplicateSave = () => {
+    if (!duplicateConflict) return;
+    onSaveExpense(duplicateConflict.pending);
+    setDuplicateConflict(null);
     handleResetAndClose();
   };
 
@@ -370,6 +432,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
     setScanError(null);
     setConfidenceNote(null);
     setDetectedCategoryBadge(null);
+    setDuplicateConflict(null);
     setDate(selectedMonth ? `${selectedMonth}-15` : today);
     setTargetInvoiceMonth(selectedMonth || today.substring(0, 7));
     setAmount('');
@@ -955,6 +1018,15 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
           </form>
         </div>
       </div>
+
+      {/* Modal de Alerta de Comprovante Duplicado */}
+      <DuplicateExpenseAlertModal
+        isOpen={!!duplicateConflict}
+        existingExpense={duplicateConflict?.existing || null}
+        pendingExpense={duplicateConflict?.pending || null}
+        onCancel={() => setDuplicateConflict(null)}
+        onConfirmSave={handleConfirmDuplicateSave}
+      />
     </div>
   );
 };

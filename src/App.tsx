@@ -12,6 +12,7 @@ import { AdminLeadsModal } from './components/AdminLeadsModal';
 import { CloseInvoiceModal } from './components/CloseInvoiceModal';
 import { InvoicesHistoryModal } from './components/InvoicesHistoryModal';
 import { EditExpenseModal } from './components/EditExpenseModal';
+import { GoogleAuthGateView } from './components/GoogleAuthGateView';
 import { CorporateExpense, CompanySettings, InvoiceStatement } from './types/expense';
 import {
   getStoredExpenses,
@@ -37,7 +38,7 @@ import {
   loadFromCloudApi,
 } from './services/googleDriveStorage';
 import { getLocalLeadProfile, fetchAllLeads, LeadRegistration } from './services/leadsService';
-import { exchangeCodeForApiKey } from './services/openRouterService';
+import { exchangeCodeForApiKey, saveOpenRouterKey, getStoredOpenRouterKey } from './services/openRouterService';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<
@@ -65,6 +66,7 @@ export default function App() {
   }, [settings]);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
 
   // Estados de Usuário e Google Drive
   const [user, setUser] = useState<User | null>(null);
@@ -192,6 +194,15 @@ export default function App() {
       setExpenses(data);
       expensesRef.current = data;
       const savedSettings = getCompanySettings();
+      // Garante sincronia bidirecional da chave do OpenRouter entre o cache local e as configurações
+      const effectiveOpenRouterKey = savedSettings.openRouterApiKey || getStoredOpenRouterKey();
+      if (effectiveOpenRouterKey) {
+        if (!savedSettings.openRouterApiKey) {
+          savedSettings.openRouterApiKey = effectiveOpenRouterKey;
+          saveCompanySettings(savedSettings);
+        }
+        saveOpenRouterKey(effectiveOpenRouterKey, false);
+      }
       setSettings(savedSettings);
       settingsRef.current = savedSettings;
 
@@ -211,9 +222,16 @@ export default function App() {
             saveStoredInvoices(cloudData.invoices);
           }
           if (cloudData.settings) {
-            setSettings(cloudData.settings);
-            settingsRef.current = cloudData.settings;
-            saveCompanySettings(cloudData.settings);
+            const merged = { ...cloudData.settings };
+            const currentLocalKey = getStoredOpenRouterKey();
+            if (!merged.openRouterApiKey && currentLocalKey) {
+              merged.openRouterApiKey = currentLocalKey;
+            } else if (merged.openRouterApiKey) {
+              saveOpenRouterKey(merged.openRouterApiKey, false);
+            }
+            setSettings(merged);
+            settingsRef.current = merged;
+            saveCompanySettings(merged);
           }
         }
       }
@@ -235,6 +253,19 @@ export default function App() {
           window.history.replaceState({}, document.title, cleanUrl);
           flashNotification('IA Gratuita do OpenRouter conectada com sucesso!');
 
+          // Salva no cache local, atualiza configurações e sincroniza com o Drive se logado
+          saveOpenRouterKey(key, true);
+          setSettings((prev) => {
+            const updated = { ...prev, openRouterApiKey: key };
+            settingsRef.current = updated;
+            return updated;
+          });
+
+          triggerDriveSync(expensesRef.current, invoicesRef.current, {
+            ...settingsRef.current,
+            openRouterApiKey: key,
+          });
+
           if (window.opener) {
             window.opener.postMessage({ type: 'OPENROUTER_KEY_OBTAINED', key }, '*');
             window.close();
@@ -247,6 +278,19 @@ export default function App() {
 
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'OPENROUTER_KEY_OBTAINED') {
+        const receivedKey = event.data.key;
+        if (receivedKey) {
+          saveOpenRouterKey(receivedKey, true);
+          setSettings((prev) => {
+            const updated = { ...prev, openRouterApiKey: receivedKey };
+            settingsRef.current = updated;
+            return updated;
+          });
+          triggerDriveSync(expensesRef.current, invoicesRef.current, {
+            ...settingsRef.current,
+            openRouterApiKey: receivedKey,
+          });
+        }
         flashNotification('IA Gratuita do OpenRouter conectada e pronta para uso!');
       }
     };
@@ -282,9 +326,16 @@ export default function App() {
           saveStoredInvoices(result.invoices);
         }
         if (result.settings) {
-          setSettings(result.settings);
-          settingsRef.current = result.settings;
-          saveCompanySettings(result.settings);
+          const merged = { ...result.settings };
+          const currentLocalKey = getStoredOpenRouterKey();
+          if (!merged.openRouterApiKey && currentLocalKey) {
+            merged.openRouterApiKey = currentLocalKey;
+          } else if (merged.openRouterApiKey) {
+            saveOpenRouterKey(merged.openRouterApiKey, false);
+          }
+          setSettings(merged);
+          settingsRef.current = merged;
+          saveCompanySettings(merged);
         }
       }
 
@@ -310,6 +361,7 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = initAuth(
       async (authUser, token) => {
+        setIsAuthChecking(false);
         setUser(authUser);
         if (authUser?.email) {
           localStorage.setItem('meu_assessor_last_user_email', authUser.email);
@@ -341,6 +393,7 @@ export default function App() {
         }
       },
       () => {
+        setIsAuthChecking(false);
         setUser(null);
         setAccessToken(null);
         setSyncInfo(null);
@@ -369,9 +422,16 @@ export default function App() {
             saveStoredInvoices(cloudData.invoices);
           }
           if (cloudData.settings) {
-            setSettings(cloudData.settings);
-            settingsRef.current = cloudData.settings;
-            saveCompanySettings(cloudData.settings);
+            const merged = { ...cloudData.settings };
+            const currentLocalKey = getStoredOpenRouterKey();
+            if (!merged.openRouterApiKey && currentLocalKey) {
+              merged.openRouterApiKey = currentLocalKey;
+            } else if (merged.openRouterApiKey) {
+              saveOpenRouterKey(merged.openRouterApiKey, false);
+            }
+            setSettings(merged);
+            settingsRef.current = merged;
+            saveCompanySettings(merged);
           }
         }
       } catch (e) {
@@ -591,7 +651,14 @@ export default function App() {
 
       {/* Conteúdo Principal com espaço para Bottom Nav no Mobile e alinhamento em esquadro */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-8">
-        {isLoading ? (
+        {isAuthChecking ? (
+          <div className="flex flex-col items-center justify-center py-24 text-slate-500">
+            <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3" />
+            <p className="text-xs font-mono text-slate-500 dark:text-slate-400">Verificando sessão segura com Google...</p>
+          </div>
+        ) : !user ? (
+          <GoogleAuthGateView onLoginSuccess={handleLoginSuccess} />
+        ) : isLoading ? (
           <div className="flex flex-col items-center justify-center py-24 text-slate-500">
             <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3" />
             <p className="text-xs font-mono text-slate-500 dark:text-slate-400">Carregando painel financeiro...</p>
@@ -704,6 +771,7 @@ export default function App() {
         onSaveExpense={handleSaveExpense}
         selectedMonth={selectedMonth}
         defaultCardNumber={settings.corporateCardNumber}
+        existingExpenses={expenses}
       />
 
       {/* Modal de Visualização de Comprovante em Alta Resolução */}
@@ -720,6 +788,7 @@ export default function App() {
         onClose={() => setEditingExpense(null)}
         onUpdateExpense={handleUpdateExpense}
         currentSelectedMonth={selectedMonth}
+        existingExpenses={expenses}
       />
 
       {/* Modal de Cadastro de Lead & Consentimento de Termos */}

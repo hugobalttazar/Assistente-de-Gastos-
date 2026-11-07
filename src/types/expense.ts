@@ -43,6 +43,7 @@ export interface CompanySettings {
   approverName: string;
   currency: string;
   geminiApiKey?: string;
+  openRouterApiKey?: string;
   invoiceClosingDay?: number; // Dia do mês em que a fatura fecha (ex: 15, 20, 25)
 }
 

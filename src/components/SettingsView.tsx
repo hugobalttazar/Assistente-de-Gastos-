@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Save,
   Download,
@@ -50,11 +50,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [backupMessage, setBackupMessage] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const [openRouterKey, setOpenRouterKey] = useState<string | null>(getStoredOpenRouterKey());
+  const [openRouterKey, setOpenRouterKey] = useState<string | null>(
+    () => getStoredOpenRouterKey() || settings.openRouterApiKey || null
+  );
   const [isConnectingOpenRouter, setIsConnectingOpenRouter] = useState(false);
   const [manualKeyInput, setManualKeyInput] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sincroniza estado local quando as configurações forem atualizadas
+  useEffect(() => {
+    setFormData(settings);
+    if (settings.openRouterApiKey) {
+      setOpenRouterKey(settings.openRouterApiKey);
+    }
+  }, [settings]);
+
+  // Listener para eventos de autorização do OpenRouter em tempo real
+  useEffect(() => {
+    const handleAuthChange = () => {
+      const current = getStoredOpenRouterKey() || settings.openRouterApiKey || null;
+      setOpenRouterKey(current);
+    };
+
+    window.addEventListener('storage', handleAuthChange);
+    window.addEventListener('openrouter-auth-changed', handleAuthChange);
+    return () => {
+      window.removeEventListener('storage', handleAuthChange);
+      window.removeEventListener('openrouter-auth-changed', handleAuthChange);
+    };
+  }, [settings.openRouterApiKey]);
 
   const handleConnectOpenRouter = async () => {
     setIsConnectingOpenRouter(true);
@@ -67,10 +92,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       );
       if (!popup || popup.closed || typeof popup.closed === 'undefined') {
         window.location.href = url;
+      } else {
+        const timer = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(timer);
+            setIsConnectingOpenRouter(false);
+            const current = getStoredOpenRouterKey();
+            if (current) {
+              setOpenRouterKey(current);
+            }
+          }
+        }, 1000);
       }
     } catch (err) {
       console.error('Falha ao abrir OpenRouter:', err);
-    } finally {
       setIsConnectingOpenRouter(false);
     }
   };
@@ -78,6 +113,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleDisconnectOpenRouter = () => {
     removeOpenRouterKey();
     setOpenRouterKey(null);
+    const updated = { ...formData };
+    delete updated.openRouterApiKey;
+    setFormData(updated);
+    onUpdateSettings(updated);
   };
 
   const handleSaveSettings = (e: React.FormEvent) => {
@@ -530,8 +569,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 type="button"
                 onClick={() => {
                   if (manualKeyInput.trim()) {
-                    saveOpenRouterKey(manualKeyInput.trim());
-                    setOpenRouterKey(manualKeyInput.trim());
+                    const cleanKey = manualKeyInput.trim();
+                    saveOpenRouterKey(cleanKey);
+                    setOpenRouterKey(cleanKey);
+                    const updated = { ...formData, openRouterApiKey: cleanKey };
+                    setFormData(updated);
+                    onUpdateSettings(updated);
                     setManualKeyInput('');
                   }
                 }}
